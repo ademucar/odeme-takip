@@ -3,7 +3,7 @@ import {
   Home, CreditCard, PieChart, Zap, Settings, Plus, AlertTriangle,
   Mail, Lock, LogOut, Loader2, Check, Trash2, X, CheckCircle, Wallet,
   ChevronLeft, ChevronRight, RotateCcw, Filter, Menu, Pencil, Star, StickyNote,
-  Calendar as CalendarIcon, FileDown, TrendingUp, Wallet2, PiggyBank
+  Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles
 } from 'lucide-react';
 import {
   PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer,
@@ -655,10 +655,10 @@ const IncomeModal = ({ onClose, user, onSaved, showToast }) => {
 };
 
 /* ============================ AYLIK BÜTÇE PANELİ ============================ */
-const BudgetPanel = ({ gelir, odenen, bekleyen, ayAdi, onGelirEkle }) => {
+const BudgetPanel = ({ gelir, odenen, bekleyen, birikim = 0, ayAdi, onGelirEkle, onBirikimeAktar }) => {
   const toplamGider = odenen + bekleyen;
-  const kalanBakiye = gelir - odenen;          // cebinde şu an ne var
-  const aySonu = gelir - toplamGider;          // her şey ödenince ne kalır
+  const kalanBakiye = gelir - odenen - birikim;          // cebinde şu an ne var
+  const aySonu = gelir - toplamGider - birikim; // her şey ödenip biriktirilince ne kalır
   const yuzde = gelir > 0 ? Math.min(100, (toplamGider / gelir) * 100) : 0;
   const odenenYuzde = gelir > 0 ? Math.min(100, (odenen / gelir) * 100) : 0;
 
@@ -686,14 +686,18 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, ayAdi, onGelirEkle }) => {
         <span className="text-xs text-slate-500 capitalize">{ayAdi}</span>
       </div>
 
-      <div className="flex items-end justify-between mb-3">
-        <div>
+      <div className="flex items-end justify-between mb-3 gap-3">
+        <div className="min-w-0">
           <p className="text-slate-400 text-xs mb-1">Elinde kalan</p>
           <p className={`text-3xl font-bold tracking-tight ${kalanBakiye < 0 ? 'text-red-400' : 'text-white'}`}>{money(kalanBakiye)}</p>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <p className="text-slate-400 text-xs mb-1">Gelir</p>
           <p className="text-lg font-semibold text-emerald-400">{money(gelir)}</p>
+          <button onClick={onBirikimeAktar}
+            className="mt-2 text-xs bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 whitespace-nowrap">
+            <PiggyBank size={13} /> Birikime aktar
+          </button>
         </div>
       </div>
 
@@ -703,7 +707,7 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, ayAdi, onGelirEkle }) => {
         <div className="h-full bg-indigo-500/50 transition-all duration-500" style={{ width: `${Math.max(0, yuzde - odenenYuzde)}%` }} />
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-center pt-3 border-t border-slate-800">
+      <div className="grid grid-cols-4 gap-2 text-center pt-3 border-t border-slate-800">
         <div>
           <p className="text-[11px] text-slate-500 mb-1">Ödenen</p>
           <p className="text-sm font-semibold text-emerald-400">{money(odenen)}</p>
@@ -711,6 +715,10 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, ayAdi, onGelirEkle }) => {
         <div>
           <p className="text-[11px] text-slate-500 mb-1">Bekleyen</p>
           <p className="text-sm font-semibold text-indigo-300">{money(bekleyen)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-slate-500 mb-1">Birikime</p>
+          <p className="text-sm font-semibold text-purple-300">{money(birikim)}</p>
         </div>
         <div>
           <p className="text-[11px] text-slate-500 mb-1">Ay sonunda</p>
@@ -725,6 +733,170 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, ayAdi, onGelirEkle }) => {
         </p>
       )}
     </div>
+  );
+};
+
+/* ============================ BİRİKİM: HALKA GRAFİK ============================ */
+const Halka = ({ yuzde, renk, boyut = 96 }) => {
+  const r = (boyut - 12) / 2, cevre = 2 * Math.PI * r;
+  const dolu = Math.min(100, Math.max(0, yuzde));
+  return (
+    <svg width={boyut} height={boyut} className="shrink-0 -rotate-90">
+      <circle cx={boyut / 2} cy={boyut / 2} r={r} fill="none" stroke="#1e293b" strokeWidth="8" />
+      <circle cx={boyut / 2} cy={boyut / 2} r={r} fill="none" stroke={renk} strokeWidth="8" strokeLinecap="round"
+        strokeDasharray={cevre} strokeDashoffset={cevre - (cevre * dolu) / 100}
+        style={{ transition: 'stroke-dashoffset .6s ease' }} />
+    </svg>
+  );
+};
+
+/* ============================ BİRİKİM: HEDEF EKLE / DÜZENLE ============================ */
+const GoalModal = ({ onClose, user, onSaved, showToast, editing }) => {
+  const isEdit = !!editing;
+  const [title, setTitle] = useState(editing?.title || '');
+  const [hedef, setHedef] = useState(editing?.target_amount ? String(editing.target_amount) : '');
+  const [tarih, setTarih] = useState(editing?.target_date || '');
+  const [renk, setRenk] = useState(editing?.color || 'bg-indigo-500');
+  const [saving, setSaving] = useState(false); const [err, setErr] = useState('');
+
+  const save = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) return setErr('Bir isim yaz.');
+    setSaving(true); setErr('');
+    const veri = {
+      title: title.trim(),
+      target_amount: hedef ? parseFloat(hedef) : null,
+      target_date: tarih || null,
+      color: renk
+    };
+    const { error } = isEdit
+      ? await supabase.from('savings_goals').update(veri).eq('id', editing.id)
+      : await supabase.from('savings_goals').insert([{ ...veri, user_id: user.id }]);
+    setSaving(false);
+    if (error) return setErr(hataMesaji(error));
+    showToast(isEdit ? 'Hedef güncellendi.' : 'Hedef oluşturuldu.'); onSaved();
+  };
+
+  return (
+    <Modal title={isEdit ? 'Hedefi Düzenle' : 'Yeni Birikim Hedefi'} icon={Target} onClose={onClose}>
+      {err && <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-xl mb-5">{err}</div>}
+      <form onSubmit={save} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">Ne için biriktiriyorsun?</label>
+          <input required value={title} onChange={e => setTitle(e.target.value)} className={INPUT} placeholder="Laptop, tatil, acil durum..." />
+          <div className="flex flex-wrap gap-2 mt-2">
+            {['Acil Durum', 'Laptop', 'Tatil', 'Araba', 'Telefon'].map(h => (
+              <button key={h} type="button" onClick={() => setTitle(h)}
+                className={`text-xs px-3 py-1.5 rounded-lg border ${title === h ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-[#0B0F19] border-slate-700 text-slate-400'}`}>{h}</button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Hedef tutar</label>
+            <input type="number" step="0.01" min="0" value={hedef} onChange={e => setHedef(e.target.value)} className={INPUT} placeholder="Boş = kumbara" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Son tarih</label>
+            <input type="date" value={tarih} onChange={e => setTarih(e.target.value)} className={`${INPUT} [color-scheme:dark]`} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Renk</label>
+          <div className="flex flex-wrap gap-2">
+            {Object.keys(HEX_COLORS).map(c => (
+              <button key={c} type="button" onClick={() => setRenk(c)}
+                className={`w-8 h-8 rounded-full ${c} ${renk === c ? 'ring-2 ring-white scale-110' : 'opacity-50 hover:opacity-100'} transition-all`} />
+            ))}
+          </div>
+        </div>
+        <button type="submit" disabled={saving} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl flex justify-center items-center gap-2">
+          {saving ? <Loader2 className="animate-spin" size={18} /> : <><Check size={18} /> Kaydet</>}
+        </button>
+      </form>
+    </Modal>
+  );
+};
+
+/* ============================ BİRİKİM: PARA AKTAR / ÇEK ============================ */
+const TransferModal = ({ goal, hedefler, onClose, user, onSaved, showToast, kalanBakiye }) => {
+  const [goalId, setGoalId] = useState(goal?.id || hedefler[0]?.id || '');
+  const [tutar, setTutar] = useState('');
+  const [yon, setYon] = useState('ekle');   // ekle | cek
+  const [not, setNot] = useState('');
+  const [saving, setSaving] = useState(false); const [err, setErr] = useState('');
+
+  const secili = hedefler.find(h => h.id === goalId);
+  const miktar = parseFloat(tutar) || 0;
+
+  const save = async (e) => {
+    e.preventDefault();
+    if (!goalId) return setErr('Bir hedef seç.');
+    if (miktar <= 0) return setErr('Tutar sıfırdan büyük olmalı.');
+    if (yon === 'cek' && secili && miktar > secili.biriken) return setErr(`Bu hedefte ${money(secili.biriken)} var, daha fazlasını çekemezsin.`);
+    setSaving(true); setErr('');
+    const { error } = await supabase.from('savings_transactions').insert([{
+      goal_id: goalId, user_id: user.id,
+      amount: yon === 'ekle' ? miktar : -miktar,
+      note: not.trim() || null, moved_at: iso(new Date())
+    }]);
+    setSaving(false);
+    if (error) return setErr(hataMesaji(error));
+    showToast(yon === 'ekle' ? `${money(miktar)} birikime aktarıldı.` : `${money(miktar)} birikimden çekildi.`);
+    onSaved();
+  };
+
+  return (
+    <Modal title={yon === 'ekle' ? 'Birikime Aktar' : 'Birikimden Çek'} icon={PiggyBank} onClose={onClose}>
+      {err && <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-xl mb-5">{err}</div>}
+      <form onSubmit={save} className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          {[['ekle', 'Para Aktar', ArrowDownLeft], ['cek', 'Geri Çek', ArrowUpRight]].map(([id, etiket, Ikon]) => (
+            <button key={id} type="button" onClick={() => setYon(id)}
+              className={`py-2.5 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${yon === id ? (id === 'ekle' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300' : 'bg-orange-600/20 border-orange-500 text-orange-300') : 'bg-[#0B0F19] border-slate-700 text-slate-400'}`}>
+              <Ikon size={16} /> {etiket}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">Hedef</label>
+          <select value={goalId} onChange={e => setGoalId(e.target.value)} className={INPUT}>
+            {hedefler.map(h => <option key={h.id} value={h.id}>{h.title} — {money(h.biriken)}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">Tutar (₺)</label>
+          <input type="number" step="0.01" min="0" required autoFocus value={tutar} onChange={e => setTutar(e.target.value)} className={INPUT} placeholder="0.00" />
+          {yon === 'ekle' && kalanBakiye > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[0.1, 0.25, 0.5].map(o => (
+                <button key={o} type="button" onClick={() => setTutar(String(Math.round(kalanBakiye * o)))}
+                  className="text-xs px-3 py-1.5 rounded-lg border bg-[#0B0F19] border-slate-700 text-slate-400 hover:text-white">
+                  Bakiyenin %{o * 100}'i
+                </button>
+              ))}
+            </div>
+          )}
+          {yon === 'ekle' && miktar > 0 && (
+            <p className={`text-xs mt-2 ${miktar > kalanBakiye ? 'text-yellow-500' : 'text-slate-500'}`}>
+              Aktarınca elinde {money(kalanBakiye - miktar)} kalır
+              {miktar > kalanBakiye && ' — bu ayki bakiyenden fazla aktarıyorsun.'}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">Not (opsiyonel)</label>
+          <input value={not} onChange={e => setNot(e.target.value)} className={INPUT} placeholder="Örn: maaş günü aktarımı" />
+        </div>
+
+        <button type="submit" disabled={saving} className={`w-full text-white font-medium py-3 rounded-xl flex justify-center items-center gap-2 ${yon === 'ekle' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'}`}>
+          {saving ? <Loader2 className="animate-spin" size={18} /> : <><Check size={18} /> {yon === 'ekle' ? 'Aktar' : 'Çek'}</>}
+        </button>
+      </form>
+    </Modal>
   );
 };
 
@@ -804,6 +976,10 @@ export default function App() {
   const [payments, setPayments] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [incomeModal, setIncomeModal] = useState(false);
+  const [goals, setGoals] = useState([]);
+  const [savingsTx, setSavingsTx] = useState([]);
+  const [goalModal, setGoalModal] = useState(null);      // {} | {editing}
+  const [transferModal, setTransferModal] = useState(null); // {} | {goal}
   const [occurrences, setOccurrences] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
   const [statusFilter, setStatusFilter] = useState('hepsi');
@@ -837,13 +1013,15 @@ export default function App() {
     if (!session?.user) return;
     setLoadingData(true);
     const uid = session.user.id;
-    const [cats, pays, occs, gels] = await Promise.all([
+    const [cats, pays, occs, gels, hedefler, hareketler] = await Promise.all([
       supabase.from('categories').select('*').eq('user_id', uid).order('name'),
       supabase.from('payments').select('*, categories(name,color)').eq('user_id', uid).order('created_at', { ascending: false }),
       supabase.from('payment_occurrences')
         .select('id, payment_id, due_date, amount, status, installment_number, paid_date, payments(id, title, type, total_installments, is_auto_pay, is_pinned, notes, repeat_period, categories(name,color))')
         .eq('user_id', uid).order('due_date', { ascending: true }),
-      supabase.from('incomes').select('*').eq('user_id', uid).order('start_date', { ascending: false })
+      supabase.from('incomes').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
+      supabase.from('savings_goals').select('*').eq('user_id', uid).eq('is_archived', false).order('created_at'),
+      supabase.from('savings_transactions').select('*').eq('user_id', uid).order('moved_at', { ascending: false })
     ]);
     if (cats.data) setCategories(cats.data);
     if (pays.data) setPayments(pays.data);
@@ -851,6 +1029,9 @@ export default function App() {
     if (gels.data) setIncomes(gels.data);
     // incomes tablosu henüz oluşturulmadıysa sessiz geç, uygulama çalışmaya devam etsin
     if (gels.error) console.warn('[gelir]', gels.error.message);
+    if (hedefler.data) setGoals(hedefler.data);
+    if (savingsTx && hareketler.data) setSavingsTx(hareketler.data);
+    if (hedefler.error) console.warn('[birikim]', hedefler.error.message);
     const ilkHata = cats.error || pays.error || occs.error;
     if (ilkHata) showToast(hataMesaji(ilkHata), 'error');
     setLoadingData(false);
@@ -896,7 +1077,7 @@ export default function App() {
   /* Esc ile açık pencereyi kapat */
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') { setPaymentModal(null); setOccModal(null); setCatModal(null); setIncomeModal(false); }
+      if (e.key === 'Escape') { setPaymentModal(null); setOccModal(null); setCatModal(null); setIncomeModal(false); setGoalModal(null); setTransferModal(null); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -922,6 +1103,15 @@ export default function App() {
     };
   }, [pending, upcoming, overdue]);
 
+  /* Her hedefin biriken tutarı ve ilerleme yüzdesi */
+  const hedeflerDolu = useMemo(() => goals.map(h => {
+    const biriken = savingsTx.filter(t => t.goal_id === h.id).reduce((a, b) => a + Number(b.amount), 0);
+    const yuzde = h.target_amount ? (biriken / Number(h.target_amount)) * 100 : 0;
+    return { ...h, biriken, yuzde, tamam: h.target_amount ? biriken >= Number(h.target_amount) : false };
+  }), [goals, savingsTx]);
+
+  const toplamBirikim = useMemo(() => savingsTx.reduce((a, b) => a + Number(b.amount), 0), [savingsTx]);
+
   /* Seçili ayın geliri: tekrar edenler (başlangıcı geçmişse) + o aya ait tek seferlikler */
   const butce = useMemo(() => {
     const ay = calCursor.getMonth(), yil = calCursor.getFullYear();
@@ -937,8 +1127,13 @@ export default function App() {
     });
     const odenen = buAy.filter(o => o.status === 'odendi').reduce((a, b) => a + Number(b.amount), 0);
     const bekleyen = buAy.filter(o => o.status === 'bekliyor').reduce((a, b) => a + Number(b.amount), 0);
-    return { gelir, odenen, bekleyen };
-  }, [incomes, occurrences, calCursor]);
+    // O ay birikime aktarılan net tutar da cepten çıkmış sayılır
+    const birikim = savingsTx.filter(t => {
+      const d = new Date(t.moved_at);
+      return d.getMonth() === ay && d.getFullYear() === yil;
+    }).reduce((a, b) => a + Number(b.amount), 0);
+    return { gelir, odenen, bekleyen, birikim };
+  }, [incomes, occurrences, savingsTx, calCursor]);
 
   /* Dağılım: takvimde hangi aydaysan o ayın giderleri (ödenmiş + bekleyen). */
   const chartData = useMemo(() => {
@@ -1143,6 +1338,14 @@ export default function App() {
   });
 
   /* Yanlışlıkla ödendi işaretlenmiş, vadesi henüz gelmemiş taksitleri toplu geri al. */
+  const deleteGoal = async (h) => {
+    if (!window.confirm(`"${h.title}" hedefi ve tüm hareketleri silinecek. Emin misin?`)) return;
+    await supabase.from('savings_transactions').delete().eq('goal_id', h.id);
+    const { error } = await supabase.from('savings_goals').delete().eq('id', h.id);
+    if (error) return showToast(hataMesaji(error), 'error');
+    showToast('Hedef silindi.'); fetchAll();
+  };
+
   const deleteIncome = async (g) => {
     if (!window.confirm(`"${g.title}" geliri silinsin mi?`)) return;
     const { error } = await supabase.from('incomes').delete().eq('id', g.id);
@@ -1164,7 +1367,7 @@ export default function App() {
 
   const userName = session.user.email.split('@')[0];
   const rowProps = { onToggle: togglePaid, onDelete: deleteOccurrence, onEdit: openEditFromRow };
-  const navItems = [['Ana Sayfa', Home], ['Ödemeler', CreditCard], ['Kategoriler', PieChart], ['Abonelikler', Zap], null, ['Ayarlar', Settings]];
+  const navItems = [['Ana Sayfa', Home], ['Ödemeler', CreditCard], ['Kategoriler', PieChart], ['Abonelikler', Zap], ['Birikim', PiggyBank], null, ['Ayarlar', Settings]];
 
   return (
     <div className="flex h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans overflow-hidden selection:bg-indigo-500/30">
@@ -1216,16 +1419,17 @@ export default function App() {
                 <SummaryCard title="Bu Ay Bekleyen" amount={summary.thisMonth} type="primary" icon={Wallet} subtitle="Bu ay ödenecek" badgeText="Aylık" badgeType="neutral" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }} />
                 <SummaryCard title="Yaklaşan Ödemeler" amount={summary.upcomingTotal} type="success" icon={CalendarIcon} subtitle="Önümüzdeki 7 gün" badgeText={`${summary.upcomingCount} ödeme`} badgeType="positive" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }} />
                 <SummaryCard title="Geciken Ödemeler" amount={summary.overdueTotal} type="danger" icon={AlertTriangle} subtitle={summary.overdueCount > 0 ? `${summary.overdueCount} ödeme gecikti` : 'Gecikme yok'} badgeText={summary.overdueCount > 0 ? 'Dikkat' : 'Temiz'} badgeType={summary.overdueCount > 0 ? 'warning' : 'positive'} onClick={() => { setStatusFilter('geciken'); goTab('Ödemeler'); }} />
-                <SummaryCard title="Kalan Bakiye" amount={butce.gelir - butce.odenen} type="purple" icon={PiggyBank}
+                <SummaryCard title="Kalan Bakiye" amount={butce.gelir - butce.odenen - butce.birikim} type="purple" icon={PiggyBank}
                   subtitle={butce.gelir > 0 ? 'Bu ay elinde kalan' : 'Maaşını ekle, takip başlasın'}
                   badgeText={butce.gelir > 0 ? 'Bütçe' : 'Gelir ekle'} badgeType="neutral"
                   onClick={() => butce.gelir > 0 ? goTab('Ayarlar') : setIncomeModal(true)} />
               </div>
 
               <div className="mt-6">
-                <BudgetPanel gelir={butce.gelir} odenen={butce.odenen} bekleyen={butce.bekleyen}
+                <BudgetPanel gelir={butce.gelir} odenen={butce.odenen} bekleyen={butce.bekleyen} birikim={butce.birikim}
                   ayAdi={calCursor.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
-                  onGelirEkle={() => setIncomeModal(true)} />
+                  onGelirEkle={() => setIncomeModal(true)}
+                  onBirikimeAktar={() => hedeflerDolu.length ? setTransferModal({}) : goTab('Birikim')} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
@@ -1493,6 +1697,136 @@ export default function App() {
             );
           })()}
 
+          {activeTab === 'Birikim' && (
+            <div className="space-y-6 pb-20">
+              {/* Üst özet */}
+              <div className={`${CARD} p-6 relative overflow-hidden`}>
+                <div className="absolute -top-16 -right-16 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl" />
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1 flex items-center gap-2"><PiggyBank size={16} className="text-purple-400" /> Toplam birikimin</p>
+                    <p className="text-4xl font-bold text-white tracking-tight">{money(toplamBirikim)}</p>
+                    <p className="text-slate-500 text-xs mt-2">
+                      {hedeflerDolu.length} hedef · bu ay {money(butce.birikim)} aktardın
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {hedeflerDolu.length > 0 && (
+                      <button onClick={() => setTransferModal({})}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
+                        <ArrowDownLeft size={16} /> Para Aktar
+                      </button>
+                    )}
+                    <button onClick={() => setGoalModal({})}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
+                      <Plus size={16} /> Yeni Hedef
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hedef kartları */}
+              {hedeflerDolu.length === 0 ? (
+                <div className={`${CARD}`}>
+                  <EmptyState icon={Target} title="Henüz birikim hedefin yok"
+                    desc="Bir hedef oluştur, sonra her ay bütçenden buraya para aktar. Ne kadar yaklaştığını halka üzerinde görürsün."
+                    action={<button onClick={() => setGoalModal({})} className="mt-5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"><Plus size={16} /> İlk Hedefini Oluştur</button>} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {hedeflerDolu.map(h => {
+                    const renk = HEX_COLORS[h.color] || '#6366f1';
+                    const kalan = h.target_amount ? Math.max(0, Number(h.target_amount) - h.biriken) : null;
+                    const gunKaldi = h.target_date ? dayDiff(h.target_date) : null;
+                    const aylikGerek = (kalan && gunKaldi && !gunKaldi.isOverdue && gunKaldi.raw > 0)
+                      ? kalan / Math.max(1, gunKaldi.raw / 30) : null;
+                    return (
+                      <div key={h.id} className={`${CARD} p-6 group`}>
+                        <div className="flex items-start gap-5">
+                          <div className="relative">
+                            <Halka yuzde={h.target_amount ? h.yuzde : 100} renk={h.tamam ? '#22c55e' : renk} />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              {h.target_amount
+                                ? <><span className="text-lg font-bold text-white">{Math.round(h.yuzde)}%</span>{h.tamam && <Sparkles size={12} className="text-emerald-400 mt-0.5" />}</>
+                                : <PiggyBank size={26} style={{ color: renk }} />}
+                            </div>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <h3 className="text-white font-bold truncate">{h.title}</h3>
+                                <p className="text-2xl font-bold text-white mt-1">{money(h.biriken)}</p>
+                                {h.target_amount
+                                  ? <p className="text-xs text-slate-400 mt-0.5">hedef {money(h.target_amount)}</p>
+                                  : <p className="text-xs text-slate-500 mt-0.5">hedefsiz kumbara</p>}
+                              </div>
+                              <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                                <button onClick={() => setGoalModal({ editing: h })} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-indigo-400 border border-slate-700"><Pencil size={14} /></button>
+                                <button onClick={() => deleteGoal(h)} className="p-1.5 rounded-lg bg-slate-800 text-slate-500 hover:text-red-400 border border-slate-700"><Trash2 size={14} /></button>
+                              </div>
+                            </div>
+
+                            {h.tamam && (
+                              <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1.5 mt-3 inline-flex items-center gap-1.5">
+                                <Sparkles size={12} /> Hedefe ulaştın, tebrikler!
+                              </p>
+                            )}
+                            {!h.tamam && kalan !== null && (
+                              <p className="text-xs text-slate-400 mt-3">
+                                {money(kalan)} kaldı
+                                {aylikGerek && <span className="text-slate-500"> · ayda {money(aylikGerek)} aktarırsan yetişir</span>}
+                              </p>
+                            )}
+                            {h.target_date && (
+                              <p className="text-[11px] text-slate-500 mt-1">
+                                {gunKaldi.isOverdue ? `Hedef tarihi ${gunKaldi.days} gün geçti` : `${formatDate(h.target_date)} · ${gunKaldi.days} gün var`}
+                              </p>
+                            )}
+
+                            <button onClick={() => setTransferModal({ goal: h })}
+                              className="mt-4 w-full sm:w-auto bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2">
+                              <PiggyBank size={14} /> Para aktar / çek
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Son hareketler */}
+              {savingsTx.length > 0 && (
+                <div className={`${CARD} overflow-hidden`}>
+                  <div className="p-6 border-b border-slate-800/50"><h3 className="text-lg font-bold text-white">Son Hareketler</h3></div>
+                  <div className="divide-y divide-slate-800/60">
+                    {savingsTx.slice(0, 10).map(t => {
+                      const h = goals.find(g => g.id === t.goal_id);
+                      const arti = Number(t.amount) > 0;
+                      return (
+                        <div key={t.id} className="flex items-center justify-between p-4 gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${arti ? 'bg-emerald-500/15 text-emerald-400' : 'bg-orange-500/15 text-orange-400'}`}>
+                              {arti ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-white text-sm font-medium truncate">{h?.title || 'Silinmiş hedef'}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{formatDate(t.moved_at)}{t.note ? ` · ${t.note}` : ''}</p>
+                            </div>
+                          </div>
+                          <span className={`font-semibold text-sm shrink-0 ${arti ? 'text-emerald-400' : 'text-orange-400'}`}>
+                            {arti ? '+' : '−'}{money(Math.abs(Number(t.amount)))}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'Ayarlar' && (
             <div className="space-y-6 pb-20 max-w-2xl mx-auto w-full">
               <div className={`${CARD} p-6`}>
@@ -1572,6 +1906,11 @@ export default function App() {
           onSuccess={() => { const wasEdit = !!paymentModal.editing; setPaymentModal(null); fetchAll(); showToast(wasEdit ? 'Ödeme güncellendi.' : 'Ödeme eklendi.'); }} />
       )}
       {occModal && <OccurrenceModal item={occModal} onClose={() => setOccModal(null)} onSaved={() => { setOccModal(null); fetchAll(); }} showToast={showToast} />}
+      {goalModal && <GoalModal user={session.user} editing={goalModal.editing} onClose={() => setGoalModal(null)}
+        onSaved={() => { setGoalModal(null); fetchAll(); }} showToast={showToast} />}
+      {transferModal && hedeflerDolu.length > 0 && <TransferModal user={session.user} goal={transferModal.goal}
+        hedefler={hedeflerDolu} kalanBakiye={butce.gelir - butce.odenen - butce.birikim}
+        onClose={() => setTransferModal(null)} onSaved={() => { setTransferModal(null); fetchAll(); }} showToast={showToast} />}
       {incomeModal && <IncomeModal user={session.user} onClose={() => setIncomeModal(false)}
         onSaved={() => { setIncomeModal(false); fetchAll(); }} showToast={showToast} />}
       {catModal && <CategoryModal cat={catModal} onClose={() => setCatModal(null)} onSaved={() => { setCatModal(null); fetchAll(); }} showToast={showToast} />}
