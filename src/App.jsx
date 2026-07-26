@@ -285,13 +285,13 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-[#0B0F19] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans relative">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-4"><div className="p-4 bg-indigo-500/20 text-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/20"><Wallet size={48} /></div></div>
         <h2 className="text-center text-3xl font-extrabold text-white">{isRegister ? 'Yeni Hesap Oluştur' : 'Hesabınıza Giriş Yapın'}</h2>
         <p className="mt-2 text-center text-sm text-slate-400">Finansını Planla, Rahatla.</p>
       </div>
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="bg-[#13182B] py-8 px-4 sm:rounded-2xl sm:px-10 border border-slate-800">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {basarili && <div className="text-sm p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/50 text-emerald-400">{basarili}</div>}
@@ -320,6 +320,21 @@ const Login = () => {
               className="ml-2 font-medium text-indigo-400 hover:text-indigo-300 underline">{isRegister ? 'Giriş Yap' : 'Kayıt Ol'}</button>
           </p>
         </div>
+      </div>
+
+      {/* Geliştirici Bilgisi */}
+      <div className="absolute bottom-6 left-0 w-full text-center text-xs text-slate-500">
+        <p>
+          Developed by{" "}
+          <a 
+            href="https://ademucar.com.tr/" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-slate-300 font-medium hover:text-white transition-colors"
+          >
+            Adem Uçar
+          </a>
+        </p>
       </div>
     </div>
   );
