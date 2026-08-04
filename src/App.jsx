@@ -12,6 +12,7 @@ import {
 
 import { supabase } from './lib/supabase';
 
+
 /* Kayıt sırasında Supabase (e-posta doğrulaması kapalıysa) anında oturum açar.
    Bu bayrak açıkken oturum değişimini yok sayıyoruz ki dashboard bir an bile görünmesin. */
 let kayitSurecinde = false;
