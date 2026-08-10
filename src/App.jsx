@@ -470,6 +470,61 @@ const Login = () => {
   );
 };
 
+/* ============================ ŞİFRE YENİLE (e-posta linkinden gelince) ============================ */
+const SifreYenile = ({ onDone, showToast }) => {
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  const [goster, setGoster] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const kaydet = async (e) => {
+    e.preventDefault(); setError('');
+    if (password.length < 6) return setError('Şifre en az 6 karakter olmalı.');
+    if (password !== password2) return setError('Şifreler eşleşmiyor.');
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) return setError(hataMesaji(error));
+    showToast('Şifren güncellendi. Artık yeni şifrenle girebilirsin.');
+    onDone();
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans flex flex-col justify-center px-5 py-12">
+      <div className="w-full max-w-sm mx-auto">
+        <div className="flex justify-center mb-4"><div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl shadow-lg shadow-indigo-500/20"><Lock size={32} /></div></div>
+        <h2 className="text-center text-xl sm:text-2xl font-bold text-white">Yeni Şifreni Belirle</h2>
+        <p className="mt-2 text-center text-sm text-slate-400">Hesabın için yeni bir şifre gir.</p>
+        <form className="mt-8 space-y-5" onSubmit={kaydet}>
+          {error && <div className="text-sm p-3 rounded-xl border bg-red-500/10 border-red-500/50 text-red-400">{error}</div>}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Yeni şifre</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+              <input type={goster ? 'text' : 'password'} required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
+              <button type="button" onClick={() => setGoster(v => !v)} aria-label={goster ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                {goster ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Yeni şifre (tekrar)</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+              <input type={goster ? 'text' : 'password'} required minLength={6} value={password2} onChange={e => setPassword2(e.target.value)} className={`${INPUT} pl-10`} placeholder="••••••••" />
+            </div>
+          </div>
+          <button type="submit" disabled={loading} className="w-full flex justify-center items-center py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-500/20">
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <><Check size={18} className="mr-2" /> Şifreyi Güncelle</>}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 /* ============================ ÖDEME EKLE / DÜZENLE ============================ */
 const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
   const isEdit = !!editing;
@@ -1114,6 +1169,7 @@ const PAGE_SIZE = 20;
 export default function App() {
   const [session, setSession] = useState(null);
   const [booting, setBooting] = useState(true);
+  const [kurtarma, setKurtarma] = useState(false); // şifre sıfırlama linkinden gelindiğinde
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem('aktifSekme') || 'Ana Sayfa'; } catch { return 'Ana Sayfa'; }
   });
@@ -1159,7 +1215,8 @@ export default function App() {
     };
     baslat();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setKurtarma(true); // e-posta linkinden gelindi
       if (kayitSurecinde) return; // kayıt akışındaki geçici oturumu yok say
       setSession(s);
     });
@@ -1524,6 +1581,7 @@ export default function App() {
   };
 
   if (booting) return <div className="h-screen flex justify-center items-center bg-[#0B0F19]"><Loader2 className="animate-spin text-indigo-500" size={40} /></div>;
+  if (kurtarma) return <SifreYenile showToast={showToast} onDone={() => { setKurtarma(false); try { window.history.replaceState(null, '', window.location.pathname); } catch { /* yoksay */ } }} />;
   if (!session) return <Login />;
 
   const userName = session.user.email.split('@')[0];
