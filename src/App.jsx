@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import {
   Home, CreditCard, PieChart, Zap, Settings, Plus, AlertTriangle,
   Mail, Lock, LogOut, Loader2, Check, Trash2, X, CheckCircle, Wallet,
   ChevronLeft, ChevronRight, RotateCcw, Filter, Menu, Pencil, Star, StickyNote,
   Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles
 } from 'lucide-react';
-import {
-  PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer,
-  Tooltip as RechartsTooltip
-} from 'recharts';
 
 import { supabase } from './lib/supabase';
+
+/* Grafik (recharts) ağır; ayrı parçada tembel yüklenir. */
+const CategoryPie = lazy(() => import('./Chart'));
 
 
 /* Kayıt sırasında Supabase (e-posta doğrulaması kapalıysa) anında oturum açar.
@@ -1002,6 +1001,7 @@ export default function App() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [acikGruplar, setAcikGruplar] = useState(new Set());
   const elleSilinenler = useRef(new Set()); // otomatik yenilemenin geri getirmemesi için
+  const otoUretimAktif = useRef(false); // aynı taksitin iki kez üretilmesini engeller
   const [grupluGorunum, setGrupluGorunum] = useState(true);
   const [calCursor, setCalCursor] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
@@ -1085,8 +1085,11 @@ export default function App() {
       });
     });
 
-    if (eksikler.length) {
-      supabase.from('payment_occurrences').insert(eksikler).then(({ error }) => { if (!error) fetchAll(); });
+    if (eksikler.length && !otoUretimAktif.current) {
+      otoUretimAktif.current = true;
+      supabase.from('payment_occurrences').insert(eksikler)
+        .then(({ error }) => { if (!error) fetchAll(); })
+        .finally(() => { otoUretimAktif.current = false; });
     }
   }, [payments, occurrences.length]);
 
@@ -1100,6 +1103,7 @@ export default function App() {
   }, []);
 
   const today = startOfToday();
+  const simdi = useMemo(() => new Date(), []); // bütçe hep içinde bulunulan aya sabit; takvim ayrı gezer
   const searched = occurrences;
 
   const pending = useMemo(() => searched.filter(o => o.status === 'bekliyor'), [searched]);
@@ -1130,7 +1134,7 @@ export default function App() {
 
   /* Seçili ayın geliri: tekrar edenler (başlangıcı geçmişse) + o aya ait tek seferlikler */
   const butce = useMemo(() => {
-    const ay = calCursor.getMonth(), yil = calCursor.getFullYear();
+    const ay = simdi.getMonth(), yil = simdi.getFullYear();
     const ayinSonu = new Date(yil, ay + 1, 0);
     const gelir = incomes.reduce((t, g) => {
       const bas = new Date(g.start_date);
@@ -1149,7 +1153,7 @@ export default function App() {
       return d.getMonth() === ay && d.getFullYear() === yil;
     }).reduce((a, b) => a + Number(b.amount), 0);
     return { gelir, odenen, bekleyen, birikim };
-  }, [incomes, occurrences, savingsTx, calCursor]);
+  }, [incomes, occurrences, savingsTx, simdi]);
 
   /* Dağılım: takvimde hangi aydaysan o ayın giderleri (ödenmiş + bekleyen). */
   const chartData = useMemo(() => {
@@ -1443,7 +1447,7 @@ export default function App() {
 
               <div className="mt-6">
                 <BudgetPanel gelir={butce.gelir} odenen={butce.odenen} bekleyen={butce.bekleyen} birikim={butce.birikim}
-                  ayAdi={calCursor.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
+                  ayAdi={simdi.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
                   onGelirEkle={() => setIncomeModal(true)}
                   onBirikimeAktar={() => hedeflerDolu.length ? setTransferModal({}) : goTab('Birikim')} />
               </div>
@@ -1497,14 +1501,9 @@ export default function App() {
                     {chartData.length > 0 ? (
                       <div className="flex flex-col gap-6">
                         <div className="h-40 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsPieChart>
-                              <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value" stroke="none">
-                                {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                              </Pie>
-                              <RechartsTooltip formatter={(v) => money(v)} contentStyle={{ backgroundColor: '#0B0F19', borderColor: '#1e293b', borderRadius: '0.75rem', color: '#f1f5f9' }} />
-                            </RechartsPieChart>
-                          </ResponsiveContainer>
+                          <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-600" size={20} /></div>}>
+                            <CategoryPie data={chartData} format={money} />
+                          </Suspense>
                         </div>
                         <div className="space-y-3">
                           {chartData.map(c => {
@@ -1669,7 +1668,7 @@ export default function App() {
           {activeTab === 'Abonelikler' && (() => {
             const subs = payments.filter(p => p.type === 'abonelik' || p.type === 'kredi_karti');
             const monthlyEq = subs.reduce((a, p) => {
-              const per = PERIODS.find(x => x.id === (p.repeat_period || 'aylik'));
+              const per = PERIODS.find(x => x.id === (p.repeat_period || 'aylik')) || PERIODS[1];
               const perMonth = per.days ? (30 / per.days) : (1 / per.months);
               return a + Number(p.amount) * perMonth;
             }, 0);
