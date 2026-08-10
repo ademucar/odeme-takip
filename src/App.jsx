@@ -3,7 +3,8 @@ import {
   Home, CreditCard, PieChart, Zap, Settings, Plus, AlertTriangle,
   Mail, Lock, LogOut, Loader2, Check, Trash2, X, CheckCircle, Wallet,
   ChevronLeft, ChevronRight, RotateCcw, Filter, Menu, Pencil, Star, StickyNote,
-  Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles
+  Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles,
+  Eye, EyeOff, ShieldCheck, BarChart3
 } from 'lucide-react';
 
 import { supabase } from './lib/supabase';
@@ -251,30 +252,94 @@ const PaymentRow = ({ item, onToggle, onDelete, onEdit, adet = 0, acik, onAcKapa
   );
 };
 
+/* ============================ GİRİŞ: SOL PANEL GÖRSELİ ============================ */
+const AuthIllustration = () => (
+  <svg viewBox="0 0 360 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-md drop-shadow-2xl">
+    <defs>
+      <linearGradient id="kart1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#6366f1" /><stop offset="1" stopColor="#3b1d9e" />
+      </linearGradient>
+      <linearGradient id="kart2" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#312e81" /><stop offset="1" stopColor="#1e1b4b" />
+      </linearGradient>
+      <linearGradient id="cizgi" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#818cf8" /><stop offset="1" stopColor="#34d399" />
+      </linearGradient>
+    </defs>
+    {/* Arka kart */}
+    <rect x="40" y="60" width="220" height="130" rx="18" fill="url(#kart2)" transform="rotate(-8 150 125)" opacity="0.85" />
+    {/* Ön kart + mini grafik */}
+    <g transform="rotate(-4 170 150)">
+      <rect x="70" y="90" width="230" height="140" rx="20" fill="url(#kart1)" />
+      <text x="90" y="122" fill="#c7d2fe" fontSize="11" fontFamily="sans-serif">Toplam Bakiye</text>
+      <text x="90" y="148" fill="#ffffff" fontSize="22" fontWeight="700" fontFamily="sans-serif">₺24.560</text>
+      <text x="90" y="166" fill="#6ee7b7" fontSize="10" fontFamily="sans-serif">+12,5% bu ay</text>
+      <path d="M92 208 L120 190 L145 200 L172 176 L200 186 L228 160 L262 170" stroke="url(#cizgi)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="262" cy="170" r="4" fill="#34d399" />
+    </g>
+    {/* Bozuk para yığını */}
+    <g transform="translate(232 176)">
+      {[0,1,2,3].map(i => (
+        <g key={i} transform={`translate(0 ${-i*11})`}>
+          <ellipse cx="34" cy="70" rx="30" ry="11" fill="#facc15" />
+          <ellipse cx="34" cy="67" rx="30" ry="11" fill="#fde68a" />
+          <text x="34" y="71" textAnchor="middle" fill="#a16207" fontSize="11" fontWeight="700" fontFamily="sans-serif">₺</text>
+        </g>
+      ))}
+    </g>
+    {/* Yüzen rozetler */}
+    <g transform="translate(280 60)">
+      <circle cx="0" cy="0" r="20" fill="#10b981" opacity="0.18" />
+      <circle cx="0" cy="0" r="20" fill="none" stroke="#10b981" strokeWidth="1.5" />
+      <path d="M-7 4 L2 -5 M2 -5 L2 2 M2 -5 L-5 -5" stroke="#34d399" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <g transform="translate(300 150)">
+      <circle cx="0" cy="0" r="18" fill="#a855f7" opacity="0.18" />
+      <path d="M0 -12 A12 12 0 0 1 10 6 L0 0 Z" fill="#c084fc" />
+      <path d="M0 -12 A12 12 0 1 0 10 6" fill="none" stroke="#a855f7" strokeWidth="2" />
+    </g>
+  </svg>
+);
+
 /* ============================ GİRİŞ ============================ */
 const Login = () => {
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [error, setError] = useState(''); const [basarili, setBasarili] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
+  const [mod, setMod] = useState('giris');      // giris | kayit | sifre
+  const [sifreGoster, setSifreGoster] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [google, setGoogle] = useState(false);
+
+  const isRegister = mod === 'kayit';
+  const isReset = mod === 'sifre';
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setBasarili('');
-
     const temiz = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(temiz)) return setError('Geçerli bir e-posta adresi gir.');
-    if (password.length < 6) return setError('Şifre en az 6 karakter olmalı.');
 
+    // Şifre sıfırlama: sadece e-posta ister
+    if (isReset) {
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(temiz, { redirectTo: window.location.origin });
+      setLoading(false);
+      if (error) return setError(hataMesaji(error));
+      return setBasarili('Şifre sıfırlama bağlantısı e-postana gönderildi. Gelen kutunu kontrol et.');
+    }
+
+    if (password.length < 6) return setError('Şifre en az 6 karakter olmalı.');
+    // Beni hatırla tercihi: işaretsizse tarayıcı kapanınca oturum düşer (App boot'ta uygulanır)
+    try { localStorage.setItem('beniHatirla', remember ? '1' : '0'); } catch { /* gizli mod */ }
     setLoading(true);
 
     if (isRegister) {
       kayitSurecinde = true;
       const { data, error } = await supabase.auth.signUp({ email: temiz, password });
       if (error) { kayitSurecinde = false; setError(hataMesaji(error)); setLoading(false); return; }
-      // Doğrulama kapalıysa Supabase hemen oturum açar; sessizce kapatıyoruz.
       if (data.session) await supabase.auth.signOut();
       kayitSurecinde = false;
-      setPassword(''); setIsRegister(false);
+      setPassword(''); setMod('giris');
       setBasarili('Kayıt başarılı! Şimdi e-posta ve şifrenle giriş yapabilirsin.');
       setLoading(false); return;
     }
@@ -284,57 +349,122 @@ const Login = () => {
     setLoading(false);
   };
 
+  const googleGiris = async () => {
+    setError(''); setGoogle(true);
+    try { localStorage.setItem('beniHatirla', remember ? '1' : '0'); } catch { /* gizli mod */ }
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+    if (error) { setError(hataMesaji(error)); setGoogle(false); }
+  };
+
+  const modDegis = (m) => { setMod(m); setError(''); setBasarili(''); };
+
+  const baslik = isReset ? 'Şifreni Sıfırla' : isRegister ? 'Yeni Hesap Oluştur' : 'Hesabınıza Giriş Yapın';
+
   return (
-    <div className="min-h-screen bg-[#0B0F19] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans relative">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center mb-4"><div className="p-4 bg-indigo-500/20 text-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/20"><Wallet size={48} /></div></div>
-        <h2 className="text-center text-3xl font-extrabold text-white">{isRegister ? 'Yeni Hesap Oluştur' : 'Hesabınıza Giriş Yapın'}</h2>
-        <p className="mt-2 text-center text-sm text-slate-400">Finansını Planla, Rahatla.</p>
+    <div className="min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans lg:grid lg:grid-cols-2">
+      {/* SOL: Marka paneli (yalnız geniş ekran) */}
+      <div className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden border-r border-slate-800/60">
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
+            <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-500/30"><Wallet size={22} /></div>
+            <span className="text-lg font-bold text-white tracking-tight">Ödeme Takip</span>
+          </div>
+          <h1 className="text-4xl font-extrabold text-white leading-tight">Finansını Planla,<br /><span className="text-indigo-400">Rahatla.</span></h1>
+          <p className="mt-4 text-slate-400 max-w-sm leading-relaxed">Gelir ve giderlerini takip et, geleceğini güvenle yönet.</p>
+          <div className="mt-10 flex justify-center"><AuthIllustration /></div>
+        </div>
+        <div className="relative z-10 grid grid-cols-3 gap-3 mt-8">
+          {[[ShieldCheck, 'Güvenli', 'Verileriniz güvende'], [BarChart3, 'Kolay Takip', 'Tüm finansın tek yerde'], [Zap, 'Hızlı & Pratik', 'Zaman kazandırır']].map(([Ikon, b, alt]) => (
+            <div key={b} className="bg-[#13182B]/70 border border-slate-800 rounded-xl p-3.5">
+              <Ikon size={18} className="text-indigo-400 mb-2" />
+              <p className="text-white text-sm font-semibold">{b}</p>
+              <p className="text-slate-500 text-[11px] mt-0.5 leading-snug">{alt}</p>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="bg-[#13182B] py-8 px-4 sm:rounded-2xl sm:px-10 border border-slate-800">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+
+      {/* SAĞ: Form paneli */}
+      <div className="flex flex-col justify-center px-5 py-12 sm:px-10 relative">
+        <div className="w-full max-w-md mx-auto">
+          <div className="flex justify-center mb-5"><div className="p-3.5 bg-indigo-500/20 text-indigo-400 rounded-2xl shadow-lg shadow-indigo-500/20"><Wallet size={40} /></div></div>
+          <h2 className="text-center text-2xl sm:text-3xl font-bold text-white">{baslik}</h2>
+          <p className="mt-2 text-center text-sm text-slate-400">
+            {isReset ? 'E-posta adresini gir, sıfırlama bağlantısı gönderelim.' : 'Finansını Planla, Rahatla.'}
+          </p>
+
+          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             {basarili && <div className="text-sm p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/50 text-emerald-400">{basarili}</div>}
             {error && <div className="text-sm p-3 rounded-xl border bg-red-500/10 border-red-500/50 text-red-400">{error}</div>}
+
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">E-posta adresi</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">E-posta adresi</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
                 <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className={`${INPUT} pl-10`} placeholder="ornek@mail.com" />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Şifre</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-                <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10`} placeholder="••••••••" />
+
+            {!isReset && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Şifre</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+                  <input type={sifreGoster ? 'text' : 'password'} required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
+                  <button type="button" onClick={() => setSifreGoster(v => !v)} aria-label={sifreGoster ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    {sifreGoster ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
-            </div>
-            <button type="submit" disabled={loading} className="w-full flex justify-center py-3 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? <Loader2 className="animate-spin" size={20} /> : (isRegister ? 'Kayıt Ol' : 'Giriş Yap')}
+            )}
+
+            {!isReset && !isRegister && (
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-slate-400 cursor-pointer select-none">
+                  <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="accent-indigo-600 w-4 h-4 rounded" />
+                  Beni hatırla
+                </label>
+                <button type="button" onClick={() => modDegis('sifre')} className="font-medium text-indigo-400 hover:text-indigo-300">Şifremi Unuttum?</button>
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="w-full flex justify-center items-center py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-500/20 transition-colors">
+              {loading ? <Loader2 className="animate-spin" size={20} /> : (isReset ? 'Sıfırlama Bağlantısı Gönder' : isRegister ? 'Kayıt Ol' : 'Giriş Yap')}
             </button>
           </form>
+
+          {!isReset && (
+            <>
+              <div className="flex items-center gap-4 my-6">
+                <div className="flex-1 h-px bg-slate-800" /><span className="text-xs text-slate-500">veya</span><div className="flex-1 h-px bg-slate-800" />
+              </div>
+              <button type="button" onClick={googleGiris} disabled={google}
+                className="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-medium text-slate-200 bg-[#13182B] border border-slate-700 hover:border-slate-600 hover:bg-slate-800 disabled:opacity-50 transition-colors">
+                {google ? <Loader2 className="animate-spin" size={18} /> : (
+                  <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C39.9 36.9 44 31 44 24c0-1.3-.1-2.3-.4-3.5z"/></svg>
+                )}
+                Google ile {isRegister ? 'Kayıt Ol' : 'Giriş Yap'}
+              </button>
+            </>
+          )}
+
           <p className="mt-6 text-center text-sm text-slate-400">
-            {isRegister ? 'Zaten hesabınız var mı?' : 'Henüz hesabınız yok mu?'}
-            <button type="button" onClick={() => { setIsRegister(!isRegister); setError(''); setBasarili(''); }}
-              className="ml-2 font-medium text-indigo-400 hover:text-indigo-300 underline">{isRegister ? 'Giriş Yap' : 'Kayıt Ol'}</button>
+            {isReset ? (
+              <button type="button" onClick={() => modDegis('giris')} className="font-medium text-indigo-400 hover:text-indigo-300">← Girişe dön</button>
+            ) : (<>
+              {isRegister ? 'Zaten hesabınız var mı?' : 'Hesabınız yok mu?'}
+              <button type="button" onClick={() => modDegis(isRegister ? 'giris' : 'kayit')}
+                className="ml-2 font-semibold text-indigo-400 hover:text-indigo-300">{isRegister ? 'Giriş Yap' : 'Kayıt Ol'}</button>
+            </>)}
+          </p>
+
+          <p className="mt-10 text-center text-xs text-slate-600">
+            Developed by <a href="https://ademucar.com.tr/" target="_blank" rel="noopener noreferrer" className="text-slate-400 font-medium hover:text-white transition-colors">Adem Uçar</a>
           </p>
         </div>
-      </div>
-
-      {/* Geliştirici Bilgisi */}
-      <div className="absolute bottom-6 left-0 w-full text-center text-xs text-slate-500">
-        <p>
-          Developed by{" "}
-          <a 
-            href="https://ademucar.com.tr/" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="text-slate-300 font-medium hover:text-white transition-colors"
-          >
-            Adem Uçar
-          </a>
-        </p>
       </div>
     </div>
   );
@@ -1017,7 +1147,18 @@ export default function App() {
   const showToast = (msg, type = 'ok') => { setToast({ msg, type }); setTimeout(() => setToast(null), 2600); };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setBooting(false); });
+    // "Beni hatırla" işaretsizse (=='0') ve bu yeni bir tarayıcı oturumuysa, kalıcı oturumu düşür.
+    const hatirlamaKapali = (() => { try { return localStorage.getItem('beniHatirla') === '0'; } catch { return false; } })();
+    const yeniSekme = (() => { try { return !sessionStorage.getItem('oturumCanli'); } catch { return false; } })();
+    try { sessionStorage.setItem('oturumCanli', '1'); } catch { /* gizli mod */ }
+
+    const baslat = async () => {
+      if (hatirlamaKapali && yeniSekme) { try { await supabase.auth.signOut(); } catch { /* yoksay */ } }
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session); setBooting(false);
+    };
+    baslat();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (kayitSurecinde) return; // kayıt akışındaki geçici oturumu yok say
       setSession(s);
