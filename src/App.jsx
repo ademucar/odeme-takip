@@ -1581,7 +1581,11 @@ export default function App() {
   };
 
   if (booting) return <div className="h-screen flex justify-center items-center bg-[#0B0F19]"><Loader2 className="animate-spin text-indigo-500" size={40} /></div>;
-  if (kurtarma) return <SifreYenile showToast={showToast} onDone={() => { setKurtarma(false); try { window.history.replaceState(null, '', window.location.pathname); } catch { /* yoksay */ } }} />;
+  if (kurtarma) return <SifreYenile showToast={showToast} onDone={async () => {
+    try { await supabase.auth.signOut(); } catch { /* yoksay */ } // yeni şifreyle bilinçli giriş için oturumu kapat
+    setSession(null); setKurtarma(false);
+    try { window.history.replaceState(null, '', window.location.pathname); } catch { /* yoksay */ }
+  }} />;
   if (!session) return <Login />;
 
   const userName = session.user.email.split('@')[0];
