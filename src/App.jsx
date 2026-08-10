@@ -254,7 +254,7 @@ const PaymentRow = ({ item, onToggle, onDelete, onEdit, adet = 0, acik, onAcKapa
 
 /* ============================ GİRİŞ: SOL PANEL GÖRSELİ ============================ */
 const AuthIllustration = () => (
-  <svg viewBox="0 0 360 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-md drop-shadow-2xl">
+  <svg viewBox="0 0 360 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-xs drop-shadow-2xl">
     <defs>
       <linearGradient id="kart1" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stopColor="#6366f1" /><stop offset="1" stopColor="#3b1d9e" />
@@ -363,17 +363,17 @@ const Login = () => {
   return (
     <div className="min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans lg:grid lg:grid-cols-2">
       {/* SOL: Marka paneli (yalnız geniş ekran) */}
-      <div className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden border-r border-slate-800/60">
+      <div className="hidden lg:flex flex-col justify-between p-10 relative overflow-hidden border-r border-slate-800/60">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl" />
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-16">
-            <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-500/30"><Wallet size={22} /></div>
-            <span className="text-lg font-bold text-white tracking-tight">Ödeme Takip</span>
+          <div className="flex items-center gap-2.5 mb-12">
+            <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-500/30"><Wallet size={18} /></div>
+            <span className="text-base font-bold text-white tracking-tight">Ödeme Takip</span>
           </div>
-          <h1 className="text-4xl font-extrabold text-white leading-tight">Finansını Planla,<br /><span className="text-indigo-400">Rahatla.</span></h1>
-          <p className="mt-4 text-slate-400 max-w-sm leading-relaxed">Gelir ve giderlerini takip et, geleceğini güvenle yönet.</p>
-          <div className="mt-10 flex justify-center"><AuthIllustration /></div>
+          <h1 className="text-3xl font-extrabold text-white leading-tight">Finansını Planla,<br /><span className="text-indigo-400">Rahatla.</span></h1>
+          <p className="mt-3 text-sm text-slate-400 max-w-xs leading-relaxed">Gelir ve giderlerini takip et, geleceğini güvenle yönet.</p>
+          <div className="mt-8 flex justify-center"><AuthIllustration /></div>
         </div>
         <div className="relative z-10 grid grid-cols-3 gap-3 mt-8">
           {[[ShieldCheck, 'Güvenli', 'Verileriniz güvende'], [BarChart3, 'Kolay Takip', 'Tüm finansın tek yerde'], [Zap, 'Hızlı & Pratik', 'Zaman kazandırır']].map(([Ikon, b, alt]) => (
@@ -388,9 +388,9 @@ const Login = () => {
 
       {/* SAĞ: Form paneli */}
       <div className="flex flex-col justify-center px-5 py-12 sm:px-10 relative">
-        <div className="w-full max-w-md mx-auto">
-          <div className="flex justify-center mb-5"><div className="p-3.5 bg-indigo-500/20 text-indigo-400 rounded-2xl shadow-lg shadow-indigo-500/20"><Wallet size={40} /></div></div>
-          <h2 className="text-center text-2xl sm:text-3xl font-bold text-white">{baslik}</h2>
+        <div className="w-full max-w-sm mx-auto">
+          <div className="flex justify-center mb-4"><div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl shadow-lg shadow-indigo-500/20"><Wallet size={32} /></div></div>
+          <h2 className="text-center text-xl sm:text-2xl font-bold text-white">{baslik}</h2>
           <p className="mt-2 text-center text-sm text-slate-400">
             {isReset ? 'E-posta adresini gir, sıfırlama bağlantısı gönderelim.' : 'Finansını Planla, Rahatla.'}
           </p>
