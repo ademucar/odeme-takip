@@ -4,7 +4,7 @@ import {
   Mail, Lock, LogOut, Loader2, Check, Trash2, X, CheckCircle, Wallet,
   ChevronLeft, ChevronRight, RotateCcw, Filter, Menu, Pencil, Star, StickyNote,
   Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles,
-  Eye, EyeOff, ShieldCheck, BarChart3
+  Eye, EyeOff, ShieldCheck, BarChart3, Bell, ChevronDown
 } from 'lucide-react';
 
 import { supabase } from './lib/supabase';
@@ -110,7 +110,38 @@ const SidebarItem = ({ icon: Icon, label, isActive, onClick, badge }) => (
   </button>
 );
 
-const SummaryCard = ({ title, amount, subtitle, badgeText, badgeType, icon: Icon, type, onClick }) => {
+/* Küçük trend grafiği (harici kütüphane yok, saf SVG). type: 'area' | 'bar' */
+const Sparkline = ({ data = [], color = '#818cf8', type = 'area', height = 38 }) => {
+  const n = data.length;
+  if (!n) return null;
+  const w = 120, h = height, pad = 3;
+  const max = Math.max(1, ...data);
+  const gid = `sg-${color.replace('#', '')}-${type}`;
+  if (type === 'bar') {
+    const gap = (w - pad * 2) / n;
+    const bw = gap * 0.58;
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+        {data.map((v, i) => {
+          const bh = Math.max(2, (v / max) * (h - 4));
+          return <rect key={i} x={pad + i * gap + (gap - bw) / 2} y={h - bh} width={bw} height={bh} rx={1.5} fill={color} opacity={0.85} />;
+        })}
+      </svg>
+    );
+  }
+  const pts = data.map((v, i) => [pad + (i * (w - pad * 2)) / Math.max(1, n - 1), h - pad - (v / max) * (h - pad * 2)]);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[n - 1][0].toFixed(1)} ${h} L${pts[0][0].toFixed(1)} ${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.35" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+const SummaryCard = ({ title, amount, subtitle, badgeText, badgeType, icon: Icon, type, onClick, spark }) => {
   const styles = { primary: 'bg-blue-500/20 text-blue-400', success: 'bg-emerald-500/20 text-emerald-400', danger: 'bg-red-500/20 text-red-400', purple: 'bg-purple-500/20 text-purple-400' };
   const badges = { positive: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', warning: 'bg-red-500/10 text-red-400 border border-red-500/20', neutral: 'bg-slate-800 text-slate-300 border border-slate-700' };
   return (
@@ -126,6 +157,7 @@ const SummaryCard = ({ title, amount, subtitle, badgeText, badgeType, icon: Icon
         <span className="text-slate-400 text-xs">{subtitle}</span>
         {badgeText && <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${badges[badgeType]}`}>{badgeText}</span>}
       </div>
+      {spark && <div className="mt-3 -mb-1 -mx-1 relative z-0 opacity-90">{spark}</div>}
     </button>
   );
 };
@@ -864,17 +896,34 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, birikim = 0, ayAdi, onGelirEkle,
 
   if (gelir === 0) {
     return (
-      <div className={`${CARD} p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between`}>
-        <div className="flex items-center gap-4">
+      <div className={`${CARD} p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between relative overflow-hidden`}>
+        <div className="absolute -top-16 -right-10 w-56 h-56 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-4 relative z-10">
           <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 shrink-0"><PiggyBank size={24} /></div>
           <div>
             <h3 className="text-white font-bold">Gelirini ekle, bütçeni gör</h3>
             <p className="text-slate-400 text-sm mt-0.5">Maaşını gir, her ödeme yaptığında kalan paran kendiliğinden düşsün.</p>
           </div>
         </div>
-        <button onClick={onGelirEkle} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 shrink-0">
-          <Plus size={16} /> Gelir Ekle
-        </button>
+        <div className="flex items-center gap-4 relative z-10">
+          <svg viewBox="0 0 150 90" className="hidden lg:block h-16 shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs><linearGradient id="bnk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6366f1" /><stop offset="1" stopColor="#4c1d95" /></linearGradient></defs>
+            <rect x="14" y="20" width="82" height="50" rx="9" fill="#312e81" transform="rotate(-9 55 45)" opacity="0.8" />
+            <rect x="26" y="26" width="82" height="50" rx="9" fill="url(#bnk)" />
+            <rect x="34" y="38" width="30" height="5" rx="2.5" fill="#c7d2fe" opacity="0.9" />
+            <rect x="34" y="52" width="46" height="4" rx="2" fill="#c7d2fe" opacity="0.5" />
+            {[0, 1, 2].map(i => (
+              <g key={i} transform={`translate(104 ${64 - i * 9})`}>
+                <ellipse cx="18" cy="8" rx="17" ry="7" fill="#fde68a" />
+                <ellipse cx="18" cy="6" rx="17" ry="7" fill="#facc15" />
+                <text x="18" y="10" textAnchor="middle" fill="#a16207" fontSize="8" fontWeight="700" fontFamily="sans-serif">₺</text>
+              </g>
+            ))}
+          </svg>
+          <button onClick={onGelirEkle} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 shrink-0">
+            <Plus size={16} /> Gelir Ekle
+          </button>
+        </div>
       </div>
     );
   }
@@ -1302,6 +1351,7 @@ export default function App() {
 
   const today = startOfToday();
   const simdi = useMemo(() => new Date(), []); // bütçe hep içinde bulunulan aya sabit; takvim ayrı gezer
+  const gunBasi = useMemo(() => startOfToday(), []); // memo bağımlılığı için sabit "bugün"
   const searched = occurrences;
 
   const pending = useMemo(() => searched.filter(o => o.status === 'bekliyor'), [searched]);
@@ -1320,6 +1370,31 @@ export default function App() {
       overdueTotal: sum(overdue), overdueCount: overdue.length
     };
   }, [pending, upcoming, overdue]);
+
+  /* Özet kartlarındaki mini grafikler: son 6 ay + önümüzdeki 7 gün (hepsi gerçek veri). */
+  const kartTrend = useMemo(() => {
+    const aylar = [];
+    for (let i = 5; i >= 0; i--) { const d = addMonths(simdi, -i); aylar.push([d.getFullYear(), d.getMonth()]); }
+    const ayToplam = (pred) => aylar.map(([y, m]) => occurrences
+      .filter(o => { const d = new Date(o.due_date); return d.getFullYear() === y && d.getMonth() === m && pred(o, d); })
+      .reduce((a, b) => a + Number(b.amount), 0));
+    const ayGider = ayToplam(() => true);
+    const ayGeciken = ayToplam((o, d) => o.status === 'bekliyor' && d < gunBasi);
+    const ayGelir = aylar.map(([y, m]) => {
+      const son = new Date(y, m + 1, 0);
+      return incomes.reduce((t, g) => {
+        const bas = new Date(g.start_date);
+        if (g.is_recurring) return bas <= son ? t + Number(g.amount) : t;
+        return (bas.getMonth() === m && bas.getFullYear() === y) ? t + Number(g.amount) : t;
+      }, 0);
+    });
+    const ayKalan = ayGelir.map((g, i) => Math.max(0, g - ayGider[i]));
+    const gunler = Array.from({ length: 7 }, (_, i) => {
+      const k = iso(addDays(gunBasi, i));
+      return occurrences.filter(o => o.status === 'bekliyor' && iso(new Date(o.due_date)) === k).reduce((a, b) => a + Number(b.amount), 0);
+    });
+    return { ayGider, ayGeciken, ayKalan, gunler };
+  }, [occurrences, incomes, simdi, gunBasi]);
 
   /* Her hedefin biriken tutarı ve ilerleme yüzdesi */
   const hedeflerDolu = useMemo(() => goals.map(h => {
@@ -1631,6 +1706,30 @@ export default function App() {
               <p className="text-slate-400 text-sm mt-1 hidden sm:block">Finansal durumunuzu buradan yönetebilirsiniz.</p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button type="button"
+              onClick={() => overdue.length ? (setStatusFilter('geciken'), goTab('Ödemeler')) : showToast('Bekleyen bir bildirimin yok.')}
+              title="Bildirimler" className="relative p-2.5 bg-[#13182B] border border-slate-800 rounded-xl text-slate-400 hover:text-white hover:border-slate-700 transition-colors">
+              <Bell size={18} />
+              {overdue.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#0B0F19]" />}
+            </button>
+            {activeTab === 'Ana Sayfa' && (
+              <div className="relative hidden sm:block">
+                <CalendarIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                <select value={`${calCursor.getFullYear()}-${calCursor.getMonth()}`}
+                  onChange={e => { const [y, m] = e.target.value.split('-').map(Number); setCalCursor(new Date(y, m, 1)); }}
+                  className="appearance-none bg-[#13182B] border border-slate-800 rounded-xl pl-9 pr-9 py-2.5 text-sm text-slate-200 capitalize outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-slate-700">
+                  {Array.from({ length: 13 }, (_, i) => addMonths(simdi, i - 6)).map(d => (
+                    <option key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`}>
+                      {d.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              </div>
+            )}
+          </div>
         </header>
 
         <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full">
@@ -1639,13 +1738,17 @@ export default function App() {
           {activeTab === 'Ana Sayfa' && (
             <div className="pb-20">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                <SummaryCard title="Bu Ay Bekleyen" amount={summary.thisMonth} type="primary" icon={Wallet} subtitle="Bu ay ödenecek" badgeText="Aylık" badgeType="neutral" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }} />
-                <SummaryCard title="Yaklaşan Ödemeler" amount={summary.upcomingTotal} type="success" icon={CalendarIcon} subtitle="Önümüzdeki 7 gün" badgeText={`${summary.upcomingCount} ödeme`} badgeType="positive" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }} />
-                <SummaryCard title="Geciken Ödemeler" amount={summary.overdueTotal} type="danger" icon={AlertTriangle} subtitle={summary.overdueCount > 0 ? `${summary.overdueCount} ödeme gecikti` : 'Gecikme yok'} badgeText={summary.overdueCount > 0 ? 'Dikkat' : 'Temiz'} badgeType={summary.overdueCount > 0 ? 'warning' : 'positive'} onClick={() => { setStatusFilter('geciken'); goTab('Ödemeler'); }} />
+                <SummaryCard title="Bu Ay Bekleyen" amount={summary.thisMonth} type="primary" icon={Wallet} subtitle="Bu ay ödenecek" badgeText="Aylık" badgeType="neutral" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }}
+                  spark={<Sparkline data={kartTrend.ayGider} color="#818cf8" type="area" />} />
+                <SummaryCard title="Yaklaşan Ödemeler" amount={summary.upcomingTotal} type="success" icon={CalendarIcon} subtitle="Önümüzdeki 7 gün" badgeText={`${summary.upcomingCount} ödeme`} badgeType="positive" onClick={() => { setStatusFilter('bekliyor'); goTab('Ödemeler'); }}
+                  spark={<Sparkline data={kartTrend.gunler} color="#34d399" type="bar" />} />
+                <SummaryCard title="Geciken Ödemeler" amount={summary.overdueTotal} type="danger" icon={AlertTriangle} subtitle={summary.overdueCount > 0 ? `${summary.overdueCount} ödeme gecikti` : 'Gecikme yok'} badgeText={summary.overdueCount > 0 ? 'Dikkat' : 'Temiz'} badgeType={summary.overdueCount > 0 ? 'warning' : 'positive'} onClick={() => { setStatusFilter('geciken'); goTab('Ödemeler'); }}
+                  spark={<Sparkline data={kartTrend.ayGeciken} color="#f87171" type="bar" />} />
                 <SummaryCard title="Kalan Bakiye" amount={butce.gelir - butce.odenen - butce.birikim} type="purple" icon={PiggyBank}
                   subtitle={butce.gelir > 0 ? 'Bu ay elinde kalan' : 'Maaşını ekle, takip başlasın'}
                   badgeText={butce.gelir > 0 ? 'Bütçe' : 'Gelir ekle'} badgeType="neutral"
-                  onClick={() => butce.gelir > 0 ? goTab('Ayarlar') : setIncomeModal(true)} />
+                  onClick={() => butce.gelir > 0 ? goTab('Ayarlar') : setIncomeModal(true)}
+                  spark={<Sparkline data={kartTrend.ayKalan} color="#c084fc" type="area" />} />
               </div>
 
               <div className="mt-6">
