@@ -4,7 +4,7 @@ import {
   Mail, Lock, LogOut, Loader2, Check, Trash2, X, CheckCircle, Wallet,
   ChevronLeft, ChevronRight, RotateCcw, Filter, Menu, Pencil, Star, StickyNote,
   Calendar as CalendarIcon, FileDown, TrendingUp, PiggyBank, Target, ArrowDownLeft, ArrowUpRight, Sparkles,
-  Eye, EyeOff, ShieldCheck, BarChart3, Bell, ChevronDown
+  Eye, EyeOff, ShieldCheck, BarChart3, ChevronDown, Landmark, User
 } from 'lucide-react';
 
 import { supabase } from './lib/supabase';
@@ -558,17 +558,25 @@ const SifreYenile = ({ onDone, showToast }) => {
 };
 
 /* ============================ ÖDEME EKLE / DÜZENLE ============================ */
-const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
+const PaymentModal = ({ onClose, user, categories, onSuccess, editing, occurrences = [] }) => {
   const isEdit = !!editing;
+  /* Düzenleme modunda bu ödemenin taksitleri tek tek değiştirilebilir. */
+  const [taksitler, setTaksitler] = useState(() => !isEdit ? [] :
+    occurrences.filter(o => o.payment_id === editing.id)
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+      .map(o => ({ id: o.id, due_date: o.due_date, amount: String(o.amount), status: o.status, no: o.installment_number })));
+  const ilkTaksitler = useRef(taksitler.map(t => ({ ...t })));
+  const [taksitAcik, setTaksitAcik] = useState(false);
+  const setTaksit = (id, alan, deger) => setTaksitler(prev => prev.map(t => t.id === id ? { ...t, [alan]: deger } : t));
   const [f, setF] = useState(() => isEdit ? {
     title: editing.title, amount: String(editing.amount), categoryId: editing.category_id || '',
     type: editing.type, installments: editing.total_installments || 2,
-    period: editing.repeat_period || 'aylik', repeatCount: 6,
+    period: editing.repeat_period || 'aylik',
     startDate: editing.start_date, isAutoPay: !!editing.is_auto_pay, isPinned: !!editing.is_pinned,
     notes: editing.notes || '', applyToFuture: true
   } : {
     title: '', amount: '', categoryId: '', type: 'tek_seferlik', installments: 2,
-    period: 'aylik', repeatCount: 6, startDate: iso(new Date()),
+    period: 'aylik', startDate: iso(new Date()),
     isAutoPay: false, isPinned: false, notes: ''
   });
   const [loading, setLoading] = useState(false); const [error, setError] = useState('');
@@ -580,12 +588,6 @@ const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
     if (f.type === 'taksitli') {
       const n = parseInt(f.installments) || 0;
       return n > 1 ? { tarih: addMonths(f.startDate, n - 1), adet: n } : null;
-    }
-    if (f.type === 'abonelik' || f.type === 'kredi_karti') {
-      const n = Math.max(1, parseInt(f.repeatCount) || 1);
-      let d = new Date(f.startDate);
-      for (let i = 1; i < n; i++) d = nextDate(d, f.period);
-      return { tarih: d, adet: n };
     }
     return null;
   })();
@@ -601,7 +603,8 @@ const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
         installment_number: i + 1, status: 'bekliyor'
       });
     } else if (f.type === 'abonelik' || f.type === 'kredi_karti') {
-      const n = Math.max(1, parseInt(f.repeatCount));
+      // Süresiz: kullanıcıya sayı sorulmaz, 12 dönem açılır; bittikçe otomatik uzar.
+      const n = 12;
       let d = new Date(f.startDate);
       for (let i = 0; i < n; i++) {
         out.push({ payment_id: paymentId, user_id: user.id, due_date: iso(d), amount: base, installment_number: i + 1, status: 'bekliyor' });
@@ -632,6 +635,18 @@ const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
           await supabase.from('payment_occurrences')
             .update({ amount: parseFloat(f.amount) })
             .eq('payment_id', editing.id).eq('status', 'bekliyor').gte('due_date', iso(new Date()));
+        }
+        // Tek tek değiştirilen taksitleri yaz (toplu güncellemeden sonra, onu ezer)
+        for (const t of taksitler) {
+          const ilk = ilkTaksitler.current.find(x => x.id === t.id);
+          if (!ilk) continue;
+          const tutarDegisti = parseFloat(t.amount) !== parseFloat(ilk.amount);
+          const tarihDegisti = t.due_date !== ilk.due_date;
+          if (!tutarDegisti && !tarihDegisti) continue;
+          if (!(parseFloat(t.amount) >= 0)) throw new Error('Taksit tutarı geçersiz.');
+          const { error: tErr } = await supabase.from('payment_occurrences')
+            .update({ amount: parseFloat(t.amount), due_date: t.due_date }).eq('id', t.id);
+          if (tErr) throw tErr;
         }
       } else {
         const { data: payment, error: pErr } = await supabase.from('payments').insert([{
@@ -698,31 +713,21 @@ const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
           )}
 
           {(f.type === 'abonelik' || f.type === 'kredi_karti') && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Tekrar Aralığı</label>
-                <select value={f.period} onChange={e => set('period', e.target.value)} className={INPUT}>
-                  {PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                </select>
-              </div>
-              {!isEdit && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Kaç dönem oluşsun?</label>
-                  <input type="number" min="1" max="24" value={f.repeatCount} onChange={e => set('repeatCount', e.target.value)} className={INPUT} />
-                </div>
-              )}
-            </>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Tekrar Aralığı</label>
+              <select value={f.period} onChange={e => set('period', e.target.value)} className={INPUT}>
+                {PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+              <p className="text-xs text-slate-500 mt-2">Süresiz devam eder — ödedikçe sonraki dönem kendiliğinden oluşur.</p>
+            </div>
           )}
 
           {!isEdit && (
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-300 mb-1.5">İlk Ödeme Tarihi</label>
               <input type="date" required value={f.startDate} onChange={e => set('startDate', e.target.value)} className={`${INPUT} [color-scheme:dark]`} />
-              {sonTaksit && (f.type === 'abonelik' || f.type === 'kredi_karti') && (
-                <p className={`text-xs mt-2 ${sonTaksit.tarih > addMonths(new Date(), 12) ? 'text-yellow-500' : 'text-slate-500'}`}>
-                  {sonTaksit.adet} dönem · son ödeme <span className="font-medium">{formatDate(sonTaksit.tarih)}</span>
-                  {sonTaksit.tarih > addMonths(new Date(), 12) && ' — çok uzak, dönem sayısını azaltmanı öneririm. Abonelikler zaten kendini yeniler.'}
-                </p>
+              {(f.type === 'abonelik' || f.type === 'kredi_karti') && (
+                <p className="text-xs mt-2 text-slate-500">İlk ödeme bu tarihte, sonrakiler seçtiğin aralıkta tekrarlar.</p>
               )}
             </div>
           )}
@@ -749,6 +754,42 @@ const PaymentModal = ({ onClose, user, categories, onSuccess, editing }) => {
               <input type="checkbox" checked={!!f.applyToFuture} onChange={e => set('applyToFuture', e.target.checked)} className="accent-indigo-600 w-4 h-4" />
               Yeni tutar, ödenmemiş taksitlere de işlensin
             </label>
+          )}
+
+          {/* Düzenlemede: ödemenin künyesi + taksitlerin tek tek düzenlenmesi */}
+          {isEdit && (
+            <div className="col-span-2 space-y-3">
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <span className="px-2.5 py-1 rounded-lg bg-[#0B0F19] border border-slate-800 text-slate-400">Tür: <span className="text-slate-200">{TYPE_LABEL[editing.type]}</span></span>
+                {editing.start_date && <span className="px-2.5 py-1 rounded-lg bg-[#0B0F19] border border-slate-800 text-slate-400">Başlangıç: <span className="text-slate-200">{formatDate(editing.start_date)}</span></span>}
+                {editing.total_installments && <span className="px-2.5 py-1 rounded-lg bg-[#0B0F19] border border-slate-800 text-slate-400">Taksit: <span className="text-slate-200">{editing.total_installments}</span></span>}
+                <span className="px-2.5 py-1 rounded-lg bg-[#0B0F19] border border-slate-800 text-slate-400">Kayıt: <span className="text-slate-200">{taksitler.length}</span></span>
+              </div>
+
+              {taksitler.length > 0 && (
+                <div className="border border-slate-800 rounded-xl overflow-hidden">
+                  <button type="button" onClick={() => setTaksitAcik(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-[#0B0F19] text-sm font-medium text-slate-200">
+                    <span className="flex items-center gap-2"><CalendarIcon size={15} className="text-indigo-400" /> Taksitleri düzenle</span>
+                    <ChevronRight size={16} className={`text-slate-500 transition-transform ${taksitAcik ? 'rotate-90' : ''}`} />
+                  </button>
+                  {taksitAcik && (
+                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-800/70">
+                      {taksitler.map((t, i) => (
+                        <div key={t.id} className="flex items-center gap-2 p-2.5 bg-[#13182B]">
+                          <span className={`w-7 shrink-0 text-center text-[11px] font-semibold ${t.status === 'odendi' ? 'text-emerald-400' : 'text-slate-500'}`}>{t.no || i + 1}</span>
+                          <input type="date" value={t.due_date} onChange={e => setTaksit(t.id, 'due_date', e.target.value)}
+                            className="flex-1 min-w-0 bg-[#0B0F19] border border-slate-700 text-slate-200 rounded-lg px-2 py-2 text-xs [color-scheme:dark] outline-none focus:ring-1 focus:ring-indigo-500" />
+                          <input type="number" step="0.01" min="0" value={t.amount} onChange={e => setTaksit(t.id, 'amount', e.target.value)}
+                            className="w-24 shrink-0 bg-[#0B0F19] border border-slate-700 text-slate-200 rounded-lg px-2 py-2 text-xs text-right outline-none focus:ring-1 focus:ring-indigo-500" />
+                          {t.status === 'odendi' && <Check size={14} className="text-emerald-400 shrink-0" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -828,12 +869,12 @@ const CategoryModal = ({ cat, onClose, onSaved, showToast }) => {
   );
 };
 
-/* ============================ GELİR EKLE ============================ */
-const IncomeModal = ({ onClose, user, onSaved, showToast }) => {
-  const [title, setTitle] = useState('Maaş');
+/* ============================ GELİR / PARA EKLE ============================ */
+const IncomeModal = ({ onClose, user, onSaved, showToast, tekSeferlik = false }) => {
+  const [title, setTitle] = useState(tekSeferlik ? '' : 'Maaş');
   const [amount, setAmount] = useState('');
   const [startDate, setStartDate] = useState(iso(new Date()));
-  const [recurring, setRecurring] = useState(true);
+  const [recurring, setRecurring] = useState(!tekSeferlik);
   const [saving, setSaving] = useState(false); const [err, setErr] = useState('');
 
   const save = async (e) => {
@@ -846,18 +887,18 @@ const IncomeModal = ({ onClose, user, onSaved, showToast }) => {
     }]);
     setSaving(false);
     if (error) return setErr(hataMesaji(error));
-    showToast('Gelir eklendi.'); onSaved();
+    showToast(tekSeferlik ? 'Para hesabına eklendi.' : 'Gelir eklendi.'); onSaved();
   };
 
   return (
-    <Modal title="Gelir Ekle" icon={TrendingUp} onClose={onClose}>
+    <Modal title={tekSeferlik ? 'Hesaba Para Ekle' : 'Gelir Ekle'} icon={tekSeferlik ? Landmark : TrendingUp} onClose={onClose}>
       {err && <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-xl mb-5">{err}</div>}
       <form onSubmit={save} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Gelir Adı</label>
-          <input required value={title} onChange={e => setTitle(e.target.value)} className={INPUT} placeholder="Maaş, burs, ek iş..." />
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">{tekSeferlik ? 'Nereden geldi?' : 'Gelir Adı'}</label>
+          <input required value={title} onChange={e => setTitle(e.target.value)} className={INPUT} placeholder={tekSeferlik ? 'Prim, hediye, satış...' : 'Maaş, burs, ek iş...'} />
           <div className="flex flex-wrap gap-2 mt-2">
-            {['Maaş', 'Burs', 'Ek İş', 'Harçlık'].map(h => (
+            {(tekSeferlik ? ['Prim', 'Hediye', 'Satış', 'Borç Tahsilatı', 'Diğer'] : ['Maaş', 'Burs', 'Ek İş', 'Harçlık']).map(h => (
               <button key={h} type="button" onClick={() => setTitle(h)}
                 className={`text-xs px-3 py-1.5 rounded-lg border ${title === h ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-[#0B0F19] border-slate-700 text-slate-400'}`}>{h}</button>
             ))}
@@ -868,16 +909,18 @@ const IncomeModal = ({ onClose, user, onSaved, showToast }) => {
           <input type="number" step="0.01" min="0" required value={amount} onChange={e => setAmount(e.target.value)} className={INPUT} placeholder="0.00" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">İlk Alındığı Tarih</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">{tekSeferlik ? 'Tarih' : 'İlk Alındığı Tarih'}</label>
           <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className={`${INPUT} [color-scheme:dark]`} />
         </div>
-        <button type="button" onClick={() => setRecurring(!recurring)}
-          className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${recurring ? 'bg-emerald-600/10 border-emerald-500 text-emerald-300' : 'bg-[#0B0F19] border-slate-700 text-slate-400'}`}>
-          <span className="text-sm font-medium text-left">Her ay tekrar eder<br /><span className="text-[11px] opacity-70">Maaş gibi düzenli gelirlerde açık kalsın</span></span>
-          <span className={`w-10 h-6 rounded-full flex items-center px-1 shrink-0 transition-colors ${recurring ? 'bg-emerald-600 justify-end' : 'bg-slate-700 justify-start'}`}>
-            <span className="w-4 h-4 bg-white rounded-full block" />
-          </span>
-        </button>
+        {!tekSeferlik && (
+          <button type="button" onClick={() => setRecurring(!recurring)}
+            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${recurring ? 'bg-emerald-600/10 border-emerald-500 text-emerald-300' : 'bg-[#0B0F19] border-slate-700 text-slate-400'}`}>
+            <span className="text-sm font-medium text-left">Her ay tekrar eder<br /><span className="text-[11px] opacity-70">Maaş gibi düzenli gelirlerde açık kalsın</span></span>
+            <span className={`w-10 h-6 rounded-full flex items-center px-1 shrink-0 transition-colors ${recurring ? 'bg-emerald-600 justify-end' : 'bg-slate-700 justify-start'}`}>
+              <span className="w-4 h-4 bg-white rounded-full block" />
+            </span>
+          </button>
+        )}
         <button type="submit" disabled={saving} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl flex justify-center items-center gap-2">
           {saving ? <Loader2 className="animate-spin" size={18} /> : <><Check size={18} /> Kaydet</>}
         </button>
@@ -984,6 +1027,62 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, birikim = 0, ayAdi, onGelirEkle,
     </div>
   );
 };
+
+/* ============================ PROFİL: GÖRÜNEN AD ============================ */
+const ProfilKarti = ({ user, onSaved, showToast }) => {
+  const [ad, setAd] = useState(user.user_metadata?.ad || user.user_metadata?.full_name || '');
+  const [saving, setSaving] = useState(false);
+  const mevcut = user.user_metadata?.ad || user.user_metadata?.full_name || '';
+
+  const kaydet = async (e) => {
+    e.preventDefault(); setSaving(true);
+    const { error } = await supabase.auth.updateUser({ data: { ad: ad.trim() } });
+    setSaving(false);
+    if (error) return showToast(hataMesaji(error), 'error');
+    showToast('Adın güncellendi.'); onSaved();
+  };
+
+  return (
+    <div className={`${CARD} p-6`}>
+      <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2"><User size={18} className="text-indigo-400" /> Profil</h3>
+      <p className="text-slate-500 text-xs mb-4">Uygulamada sana nasıl hitap edelim?</p>
+      <form onSubmit={kaydet} className="flex flex-col sm:flex-row gap-3">
+        <input value={ad} onChange={e => setAd(e.target.value)} maxLength={40} className={`${INPUT} flex-1`} placeholder="Adın (örn. Adem)" />
+        <button type="submit" disabled={saving || ad.trim() === mevcut.trim()}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 shrink-0">
+          {saving ? <Loader2 className="animate-spin" size={18} /> : <><Check size={16} /> Kaydet</>}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+/* ============================ HESAP (o anki paran) ============================ */
+const HesapPanel = ({ bakiye, gelir, odenen, birikim, onParaEkle, onBirikimeAktar }) => (
+  <div className={`${CARD} p-6 relative overflow-hidden`}>
+    <div className="absolute -top-20 -right-16 w-64 h-64 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+    <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+      <div className="min-w-0">
+        <p className="text-slate-400 text-sm mb-1 flex items-center gap-2"><Landmark size={16} className="text-indigo-400" /> Hesabındaki para</p>
+        <p className={`text-4xl font-bold tracking-tight ${bakiye < 0 ? 'text-red-400' : 'text-white'}`}>{money(bakiye)}</p>
+        <p className="text-slate-500 text-xs mt-2">Gelirlerin eklenir, ödediklerin ve birikime ayırdıkların düşülür.</p>
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <button onClick={onParaEkle} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
+          <Plus size={16} /> Para Ekle
+        </button>
+        <button onClick={onBirikimeAktar} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
+          <PiggyBank size={16} /> Birikime Aktar
+        </button>
+      </div>
+    </div>
+    <div className="relative z-10 grid grid-cols-3 gap-2 text-center mt-5 pt-4 border-t border-slate-800">
+      <div><p className="text-[11px] text-slate-500 mb-1">Toplam gelen</p><p className="text-sm font-semibold text-emerald-400">{money(gelir)}</p></div>
+      <div><p className="text-[11px] text-slate-500 mb-1">Toplam ödenen</p><p className="text-sm font-semibold text-slate-300">{money(odenen)}</p></div>
+      <div><p className="text-[11px] text-slate-500 mb-1">Birikimde</p><p className="text-sm font-semibold text-purple-300">{money(birikim)}</p></div>
+    </div>
+  </div>
+);
 
 /* ============================ BİRİKİM: HALKA GRAFİK ============================ */
 const Halka = ({ yuzde, renk, boyut = 96 }) => {
@@ -1226,6 +1325,7 @@ export default function App() {
   const [payments, setPayments] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [incomeModal, setIncomeModal] = useState(false);
+  const [paraModal, setParaModal] = useState(false); // hesaba tek seferlik para ekleme
   const [goals, setGoals] = useState([]);
   const [savingsTx, setSavingsTx] = useState([]);
   const [goalModal, setGoalModal] = useState(null);      // {} | {editing}
@@ -1404,6 +1504,20 @@ export default function App() {
   }), [goals, savingsTx]);
 
   const toplamBirikim = useMemo(() => savingsTx.reduce((a, b) => a + Number(b.amount), 0), [savingsTx]);
+
+  /* HESAP: o an cebindeki para. Bugüne kadar tahakkuk eden tüm gelirler
+     eksi ödenen taksitler eksi birikime ayrılan net tutar. */
+  const hesap = useMemo(() => {
+    const toplamGelir = incomes.reduce((t, g) => {
+      const bas = new Date(g.start_date); bas.setHours(0, 0, 0, 0);
+      if (bas > gunBasi) return t;                         // ileri tarihli, henüz gelmedi
+      if (!g.is_recurring) return t + Number(g.amount);
+      const ayAdedi = (gunBasi.getFullYear() - bas.getFullYear()) * 12 + (gunBasi.getMonth() - bas.getMonth()) + 1;
+      return t + Number(g.amount) * Math.max(1, ayAdedi);  // her ay bir kez yatmış say
+    }, 0);
+    const toplamOdenen = occurrences.filter(o => o.status === 'odendi').reduce((a, b) => a + Number(b.amount), 0);
+    return { toplamGelir, toplamOdenen, birikim: toplamBirikim, bakiye: toplamGelir - toplamOdenen - toplamBirikim };
+  }, [incomes, occurrences, toplamBirikim, gunBasi]);
 
   /* Seçili ayın geliri: tekrar edenler (başlangıcı geçmişse) + o aya ait tek seferlikler */
   const butce = useMemo(() => {
@@ -1588,8 +1702,11 @@ export default function App() {
         .ok{color:#15803d}.bad{color:#b91c1c}
         tfoot td{font-weight:bold;border-top:2px solid #333;border-bottom:none}
         footer{margin-top:24px;color:#888;font-size:10px;text-align:center}
-        @media print{body{margin:12mm}}
+        @media print{body{margin:12mm} .yazdir{display:none!important}}
+        .yazdir{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;padding:10px 0 14px;background:#fff}
+        .yazdir button{font:600 13px/1 "Segoe UI",Arial,sans-serif;padding:11px 18px;border-radius:9px;border:0;background:#4f46e5;color:#fff}
       </style></head><body>
+      <div class="yazdir"><button onclick="window.print()">Yazdır / PDF olarak kaydet</button></div>
       <h1>Ödeme Takip Raporu</h1>
       <div class="sub">${esc(baslik)} · ${esc(session.user.email)} · ${esc(formatDate(new Date()))}</div>
       <div class="kutular">
@@ -1604,13 +1721,24 @@ export default function App() {
         <tfoot><tr><td colspan="4">TOPLAM</td><td class="r">${esc(money(toplam))}</td><td></td></tr></tfoot>
       </table>
       <footer>Ödeme Takip · Finansını Planla, Rahatla</footer>
-      <script>window.onload=()=>{window.print();}<\/script>
+      <script>
+        // Mobilde otomatik yazdırma çoğu tarayıcıda engelleniyor; orada butonla açtırıyoruz.
+        if (!matchMedia('(max-width: 820px)').matches) window.addEventListener('load', () => setTimeout(() => window.print(), 250));
+      <${'/'}script>
       </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (!w) return showToast('Pencere engellendi. Tarayıcı izinlerini kontrol et.', 'error');
-    w.document.write(html);
-    w.document.close();
+    /* document.write mobil tarayıcılarda güvenilir değil; Blob URL ile gerçek bir sayfa açıyoruz. */
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      // Sekme engellendiyse (mobilde sık) dosya olarak indirilsin
+      const a = document.createElement('a');
+      a.href = url; a.download = `Odeme-Takip-${iso(new Date())}.html`;
+      document.body.appendChild(a); a.click(); a.remove();
+      showToast('Rapor indirildi. Açıp "Yazdır → PDF" diyebilirsin.');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   /* Aynı ödemenin taksitlerini tek satırda topla; en yakın tarihli olanı göster. */
@@ -1663,16 +1791,18 @@ export default function App() {
   }} />;
   if (!session) return <Login />;
 
-  const userName = session.user.email.split('@')[0];
+  const userName = (session.user.user_metadata?.ad || '').trim()
+    || session.user.user_metadata?.full_name
+    || session.user.email.split('@')[0];
   const rowProps = { onToggle: togglePaid, onDelete: deleteOccurrence, onEdit: openEditFromRow };
   const navItems = [['Ana Sayfa', Home], ['Ödemeler', CreditCard], ['Kategoriler', PieChart], ['Abonelikler', Zap], ['Birikim', PiggyBank], null, ['Ayarlar', Settings]];
 
   return (
-    <div className="flex h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans overflow-hidden selection:bg-indigo-500/30">
+    <div className="flex min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans selection:bg-indigo-500/30">
       {/* Mobil perde */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <aside className={`w-64 bg-[#0B0F19] border-r border-slate-800 flex flex-col shrink-0 z-40 fixed md:static inset-y-0 left-0 h-full transition-transform duration-300 ease-out md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`w-64 bg-[#0B0F19] border-r border-slate-800 flex flex-col shrink-0 z-40 fixed md:sticky inset-y-0 left-0 h-[100dvh] md:top-0 transition-transform duration-300 ease-out md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 flex items-center space-x-3 mb-2 shrink-0">
           <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-500/20"><Wallet size={24} /></div>
           <div className="flex-1"><h2 className="text-xl font-bold text-white tracking-tight">Ödeme Takip</h2><p className="text-xs text-slate-400 font-medium">Finansını Planla, Rahatla</p></div>
@@ -1683,6 +1813,24 @@ export default function App() {
             ? <div key={i} className="my-4 border-t border-slate-800/50 mx-4" />
             : <SidebarItem key={it[0]} icon={it[1]} label={it[0]} isActive={activeTab === it[0]}
                 onClick={() => goTab(it[0])} badge={it[0] === 'Ödemeler' ? overdue.length : 0} />)}
+
+          {/* Dönem seçici: ana sayfadaki dağılım grafiği ve takvim bu ayı gösterir */}
+          <div className="pt-3">
+            <p className="px-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Dönem</p>
+            <div className="relative">
+              <CalendarIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <select value={`${calCursor.getFullYear()}-${calCursor.getMonth()}`}
+                onChange={e => { const [y, m] = e.target.value.split('-').map(Number); setCalCursor(new Date(y, m, 1)); setSelectedDay(null); }}
+                className="w-full appearance-none bg-transparent hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl pl-11 pr-9 py-3 text-sm capitalize outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-colors">
+                {Array.from({ length: 13 }, (_, i) => addMonths(simdi, i - 6)).map(d => (
+                  <option key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`} className="bg-[#13182B]">
+                    {d.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            </div>
+          </div>
         </nav>
         <div className="shrink-0 p-4 border-t border-slate-800/60">
           <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-900 cursor-pointer border border-transparent hover:border-slate-800"
@@ -1697,7 +1845,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-[100dvh] overflow-y-auto overscroll-contain">
+      <main className="flex-1 min-w-0 flex flex-col">
         <header className="flex justify-between items-center gap-4 py-4 px-4 sm:px-8 border-b border-slate-800/50 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3 min-w-0">
             <button className="md:hidden p-2 bg-slate-900 rounded-lg border border-slate-800" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={18} /></button>
@@ -1707,29 +1855,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button type="button"
-              onClick={() => overdue.length ? (setStatusFilter('geciken'), goTab('Ödemeler')) : showToast('Bekleyen bir bildirimin yok.')}
-              title="Bildirimler" className="relative p-2.5 bg-[#13182B] border border-slate-800 rounded-xl text-slate-400 hover:text-white hover:border-slate-700 transition-colors">
-              <Bell size={18} />
-              {overdue.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#0B0F19]" />}
-            </button>
-            {activeTab === 'Ana Sayfa' && (
-              <div className="relative hidden sm:block">
-                <CalendarIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                <select value={`${calCursor.getFullYear()}-${calCursor.getMonth()}`}
-                  onChange={e => { const [y, m] = e.target.value.split('-').map(Number); setCalCursor(new Date(y, m, 1)); }}
-                  className="appearance-none bg-[#13182B] border border-slate-800 rounded-xl pl-9 pr-9 py-2.5 text-sm text-slate-200 capitalize outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-slate-700">
-                  {Array.from({ length: 13 }, (_, i) => addMonths(simdi, i - 6)).map(d => (
-                    <option key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`}>
-                      {d.toLocaleDateString(TR, { month: 'long', year: 'numeric' })}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-              </div>
-            )}
-          </div>
         </header>
 
         <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full">
@@ -1744,12 +1869,20 @@ export default function App() {
                   spark={<Sparkline data={kartTrend.gunler} color="#34d399" type="bar" />} />
                 <SummaryCard title="Geciken Ödemeler" amount={summary.overdueTotal} type="danger" icon={AlertTriangle} subtitle={summary.overdueCount > 0 ? `${summary.overdueCount} ödeme gecikti` : 'Gecikme yok'} badgeText={summary.overdueCount > 0 ? 'Dikkat' : 'Temiz'} badgeType={summary.overdueCount > 0 ? 'warning' : 'positive'} onClick={() => { setStatusFilter('geciken'); goTab('Ödemeler'); }}
                   spark={<Sparkline data={kartTrend.ayGeciken} color="#f87171" type="bar" />} />
-                <SummaryCard title="Kalan Bakiye" amount={butce.gelir - butce.odenen - butce.birikim} type="purple" icon={PiggyBank}
-                  subtitle={butce.gelir > 0 ? 'Bu ay elinde kalan' : 'Maaşını ekle, takip başlasın'}
-                  badgeText={butce.gelir > 0 ? 'Bütçe' : 'Gelir ekle'} badgeType="neutral"
-                  onClick={() => butce.gelir > 0 ? goTab('Ayarlar') : setIncomeModal(true)}
+                <SummaryCard title="Hesap Bakiyesi" amount={hesap.bakiye} type="purple" icon={Landmark}
+                  subtitle={hesap.toplamGelir > 0 ? 'Şu an hesabındaki para' : 'Maaşını ekle, takip başlasın'}
+                  badgeText={hesap.toplamGelir > 0 ? 'Hesap' : 'Gelir ekle'} badgeType="neutral"
+                  onClick={() => hesap.toplamGelir > 0 ? setParaModal(true) : setIncomeModal(true)}
                   spark={<Sparkline data={kartTrend.ayKalan} color="#c084fc" type="area" />} />
               </div>
+
+              {hesap.toplamGelir > 0 && (
+                <div className="mt-6">
+                  <HesapPanel bakiye={hesap.bakiye} gelir={hesap.toplamGelir} odenen={hesap.toplamOdenen} birikim={hesap.birikim}
+                    onParaEkle={() => setParaModal(true)}
+                    onBirikimeAktar={() => hedeflerDolu.length ? setTransferModal({}) : goTab('Birikim')} />
+                </div>
+              )}
 
               <div className="mt-6">
                 <BudgetPanel gelir={butce.gelir} odenen={butce.odenen} bekleyen={butce.bekleyen} birikim={butce.birikim}
@@ -2150,6 +2283,8 @@ export default function App() {
 
           {activeTab === 'Ayarlar' && (
             <div className="space-y-6 pb-20 max-w-2xl mx-auto w-full">
+              <ProfilKarti user={session.user} showToast={showToast}
+                onSaved={async () => { const { data } = await supabase.auth.getSession(); setSession(data.session); }} />
               <div className={`${CARD} p-6`}>
                 <h3 className="text-lg font-bold text-white mb-4">Hesap</h3>
                 <div className="space-y-3 text-sm">
@@ -2223,17 +2358,19 @@ export default function App() {
 
       {paymentModal && (
         <PaymentModal onClose={() => setPaymentModal(null)} user={session.user} categories={categories}
-          editing={paymentModal.editing}
+          editing={paymentModal.editing} occurrences={occurrences}
           onSuccess={() => { const wasEdit = !!paymentModal.editing; setPaymentModal(null); fetchAll(); showToast(wasEdit ? 'Ödeme güncellendi.' : 'Ödeme eklendi.'); }} />
       )}
       {occModal && <OccurrenceModal item={occModal} onClose={() => setOccModal(null)} onSaved={() => { setOccModal(null); fetchAll(); }} showToast={showToast} />}
       {goalModal && <GoalModal user={session.user} editing={goalModal.editing} onClose={() => setGoalModal(null)}
         onSaved={() => { setGoalModal(null); fetchAll(); }} showToast={showToast} />}
       {transferModal && hedeflerDolu.length > 0 && <TransferModal user={session.user} goal={transferModal.goal}
-        hedefler={hedeflerDolu} kalanBakiye={butce.gelir - butce.odenen - butce.birikim}
+        hedefler={hedeflerDolu} kalanBakiye={hesap.bakiye}
         onClose={() => setTransferModal(null)} onSaved={() => { setTransferModal(null); fetchAll(); }} showToast={showToast} />}
       {incomeModal && <IncomeModal user={session.user} onClose={() => setIncomeModal(false)}
         onSaved={() => { setIncomeModal(false); fetchAll(); }} showToast={showToast} />}
+      {paraModal && <IncomeModal tekSeferlik user={session.user} onClose={() => setParaModal(false)}
+        onSaved={() => { setParaModal(false); fetchAll(); }} showToast={showToast} />}
       {catModal && <CategoryModal cat={catModal} onClose={() => setCatModal(null)} onSaved={() => { setCatModal(null); fetchAll(); }} showToast={showToast} />}
       <Toast toast={toast} />
     </div>
