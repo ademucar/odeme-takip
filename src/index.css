@@ -1,7 +1,35 @@
 @import "tailwindcss";
 
 @layer base {
+  /* Uygulamanın zemin rengi. html + body aynı olmalı; aksi halde sayfa bitince
+     veya mobilde aşağı çekince tarayıcının kendi zemini farklı renk gösteriyor. */
+  html {
+    background-color: #0B0F19;
+    color-scheme: dark;              /* kaydırma çubuğu, form kontrolleri, klavye koyu tema */
+    -webkit-text-size-adjust: 100%;  /* Android'in otomatik yazı büyütmesi düzeni bozmasın */
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-200;
+    background-color: #0B0F19;
+    min-height: 100dvh;
+    @apply text-slate-200;
+    overscroll-behavior-y: none;     /* aşağı çekince beliren farklı renkli boşluğu kaldırır */
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Mobilde girişte tarayıcının otomatik yakınlaştırmasını engeller (16px altı yazı tetikliyor) */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: inherit;
+    }
   }
 }

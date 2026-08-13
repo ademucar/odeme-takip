@@ -1845,7 +1845,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col pb-[env(safe-area-inset-bottom)]">
         <header className="flex justify-between items-center gap-4 py-4 px-4 sm:px-8 border-b border-slate-800/50 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3 min-w-0">
             <button className="md:hidden p-2 bg-slate-900 rounded-lg border border-slate-800" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={18} /></button>
