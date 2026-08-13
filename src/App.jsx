@@ -446,7 +446,7 @@ const Login = () => {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
                   <input type={sifreGoster ? 'text' : 'password'} required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
                   <button type="button" onClick={() => setSifreGoster(v => !v)} aria-label={sifreGoster ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-slate-500 hover:text-slate-300">
                     {sifreGoster ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -454,12 +454,12 @@ const Login = () => {
             )}
 
             {!isReset && !isRegister && (
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-slate-400 cursor-pointer select-none">
+              <div className="flex items-center justify-between text-sm -my-1">
+                <label className="flex items-center gap-2 py-2 pr-2 text-slate-400 cursor-pointer select-none">
                   <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="accent-indigo-600 w-4 h-4 rounded" />
                   Beni hatırla
                 </label>
-                <button type="button" onClick={() => modDegis('sifre')} className="font-medium text-indigo-400 hover:text-indigo-300">Şifremi Unuttum?</button>
+                <button type="button" onClick={() => modDegis('sifre')} className="py-2 pl-2 font-medium text-indigo-400 hover:text-indigo-300">Şifremi Unuttum?</button>
               </div>
             )}
 
@@ -489,7 +489,7 @@ const Login = () => {
             ) : (<>
               {isRegister ? 'Zaten hesabınız var mı?' : 'Hesabınız yok mu?'}
               <button type="button" onClick={() => modDegis(isRegister ? 'giris' : 'kayit')}
-                className="ml-2 font-semibold text-indigo-400 hover:text-indigo-300">{isRegister ? 'Giriş Yap' : 'Kayıt Ol'}</button>
+                className="ml-1 px-1.5 py-2 font-semibold text-indigo-400 hover:text-indigo-300">{isRegister ? 'Giriş Yap' : 'Kayıt Ol'}</button>
             </>)}
           </p>
 
