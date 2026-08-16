@@ -516,7 +516,7 @@ const Login = () => {
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-12">
             <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-500/30"><Wallet size={18} /></div>
-            <span className="text-base font-bold text-white tracking-tight">Ödeme Takip</span>
+            <span className="text-base font-bold text-white tracking-tight">Parota</span>
           </div>
           <h1 className="text-3xl font-extrabold text-white leading-tight">Finansını Planla,<br /><span className="text-indigo-400">Rahatla.</span></h1>
           <p className="mt-3 text-sm text-slate-400 max-w-xs leading-relaxed">Gelir ve giderlerini takip et, geleceğini güvenle yönet.</p>
@@ -1838,7 +1838,7 @@ export default function App() {
     </tr>`).join('');
 
     const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
-      <title>Odeme-Takip-${iso(new Date())}</title>
+      <title>Parota-${iso(new Date())}</title>
       <style>
         *{box-sizing:border-box}
         body{font-family:"Segoe UI",Arial,sans-serif;color:#111;margin:32px;font-size:12px}
@@ -1860,7 +1860,7 @@ export default function App() {
         .yazdir button{font:600 13px/1 "Segoe UI",Arial,sans-serif;padding:11px 18px;border-radius:9px;border:0;background:#4f46e5;color:#fff}
       </style></head><body>
       <div class="yazdir"><button onclick="window.print()">Yazdır / PDF olarak kaydet</button></div>
-      <h1>Ödeme Takip Raporu</h1>
+      <h1>Parota Raporu</h1>
       <div class="sub">${esc(baslik)} · ${esc(session.user.email)} · ${esc(formatDate(new Date()))}</div>
       <div class="kutular">
         <div class="kutu"><span>Kayıt sayısı</span><b>${list.length}</b></div>
@@ -1873,7 +1873,7 @@ export default function App() {
         <tbody>${rows}</tbody>
         <tfoot><tr><td colspan="4">TOPLAM</td><td class="r">${esc(money(toplam))}</td><td></td></tr></tfoot>
       </table>
-      <footer>Ödeme Takip · Finansını Planla, Rahatla</footer>
+      <footer>Parota · Finansını Planla, Rahatla</footer>
       <script>
         // Mobilde otomatik yazdırma çoğu tarayıcıda engelleniyor; orada butonla açtırıyoruz.
         if (!matchMedia('(max-width: 820px)').matches) window.addEventListener('load', () => setTimeout(() => window.print(), 250));
@@ -1887,7 +1887,7 @@ export default function App() {
     if (!w) {
       // Sekme engellendiyse (mobilde sık) dosya olarak indirilsin
       const a = document.createElement('a');
-      a.href = url; a.download = `Odeme-Takip-${iso(new Date())}.html`;
+      a.href = url; a.download = `Parota-${iso(new Date())}.html`;
       document.body.appendChild(a); a.click(); a.remove();
       showToast('Rapor indirildi. Açıp "Yazdır → PDF" diyebilirsin.');
     }
@@ -1959,7 +1959,7 @@ export default function App() {
       <aside className={`w-64 bg-[#0B0F19] border-r border-slate-800 flex flex-col shrink-0 z-40 fixed md:sticky inset-y-0 left-0 h-[100dvh] md:top-0 transition-transform duration-300 ease-out md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 flex items-center space-x-3 mb-2 shrink-0">
           <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-500/20"><Wallet size={24} /></div>
-          <div className="flex-1"><h2 className="text-xl font-bold text-white tracking-tight">Ödeme Takip</h2><p className="text-xs text-slate-400 font-medium">Finansını Planla, Rahatla</p></div>
+          <div className="flex-1"><h2 className="text-xl font-bold text-white tracking-tight">Parota</h2><p className="text-xs text-slate-400 font-medium">Finansını Planla, Rahatla</p></div>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-900 rounded-lg"><X size={18} /></button>
         </div>
         <nav className="flex-1 min-h-0 px-4 space-y-1 overflow-y-auto">

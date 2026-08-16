@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:38bdf8,50:3b82f6,100:0d1025&height=200&section=header&text=Ödeme%20Takip&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Finansını%20Planla,%20Rahatla&descAlignY=58&descSize=18" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:38bdf8,50:3b82f6,100:0d1025&height=200&section=header&text=Parota&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Finansını%20Planla,%20Rahatla&descAlignY=58&descSize=18" width="100%"/>
 
-🔗 **Canlı Site:** [takipodeme.vercel.app](https://takipodeme.vercel.app/)
+🔗 **Canlı Site:** [parota.com.tr](https://parota.com.tr/)
 
 </div>
 
@@ -10,7 +10,7 @@
 
 ## 📌 Proje Hakkında
 
-**Ödeme Takip**, kişisel finansal durumunuzu tek bir ekrandan yönetebileceğiniz kapsamlı bir bütçe ve harcama yönetim uygulamasıdır. 
+**Parota**, kişisel finansal durumunuzu tek bir ekrandan yönetebileceğiniz kapsamlı bir bütçe ve harcama yönetim uygulamasıdır. 
 
 Kullanıcılar; bu ay bekleyen ödemelerini, yaklaşan veya geciken faturalarını ve kalan bakiyelerini kolayca takip edebilirler. Modern ve karanlık tema (dark mode) odaklı arayüzü sayesinde finansal verilerin analizi hem göz yormaz hem de pratik bir şekilde gerçekleştirilir.
 
