@@ -16,6 +16,19 @@ const CategoryPie = lazy(() => import('./Chart'));
 /* Kayıt sırasında Supabase (e-posta doğrulaması kapalıysa) anında oturum açar.
    Bu bayrak açıkken oturum değişimini yok sayıyoruz ki dashboard bir an bile görünmesin. */
 let kayitSurecinde = false;
+/* E-posta doğrulama linkinden gelindiğinde Supabase kendiliğinden oturum açıyor.
+   Kullanıcıyı doğrudan içeri almak yerine onay ekranı gösterip girişe yolluyoruz. */
+let dogrulamaSurecinde = false;
+/* Supabase istemcisi adresteki token'ı işleyip hash'i temizlediği için
+   ilk adresi modül yüklenirken saklıyoruz. */
+const ILK_URL = typeof window !== 'undefined' ? window.location.href : '';
+const adresTipi = () => {
+  try {
+    const u = new URL(ILK_URL);
+    const h = new URLSearchParams(u.hash.replace(/^#/, ''));
+    return h.get('type') || u.searchParams.get('type') || '';
+  } catch { return ''; }
+};
 
 /* ============================ YARDIMCILAR ============================ */
 const TR = 'tr-TR';
@@ -387,6 +400,8 @@ const Login = () => {
   const [sifreGoster, setSifreGoster] = useState(false);
   const [remember, setRemember] = useState(true);
   const [google, setGoogle] = useState(false);
+  const [dogrulamaBekliyor, setDogrulamaBekliyor] = useState(''); // kayıt sonrası: onay bekleyen e-posta
+  const [tekrarGonderildi, setTekrarGonderildi] = useState(false);
 
   const isRegister = mod === 'kayit';
   const isReset = mod === 'sifre';
@@ -416,13 +431,19 @@ const Login = () => {
 
     if (isRegister) {
       kayitSurecinde = true;
-      const { data, error } = await supabase.auth.signUp({ email: temiz, password });
+      const { data, error } = await supabase.auth.signUp({
+        email: temiz, password, options: { emailRedirectTo: window.location.origin }
+      });
       if (error) { kayitSurecinde = false; setError(hataMesaji(error)); setLoading(false); return; }
+      // Doğrulama açıkken Supabase oturum döndürmez. Kapalıysa döner; onu sessizce kapatıyoruz.
+      const dogrulamaGerekli = !data.session;
       if (data.session) await supabase.auth.signOut();
       kayitSurecinde = false;
-      setPassword(''); setMod('giris');
+      setPassword(''); setLoading(false);
+      if (dogrulamaGerekli) return setDogrulamaBekliyor(temiz);
+      setMod('giris');
       setBasarili('Kayıt başarılı! Şimdi e-posta ve şifrenle giriş yapabilirsin.');
-      setLoading(false); return;
+      return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email: temiz, password });
@@ -438,6 +459,51 @@ const Login = () => {
   };
 
   const modDegis = (m) => { setMod(m); setError(''); setBasarili(''); };
+
+  const tekrarGonder = async () => {
+    setError(''); setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup', email: dogrulamaBekliyor, options: { emailRedirectTo: window.location.origin }
+    });
+    setLoading(false);
+    if (error) return setError(hataMesaji(error));
+    setTekrarGonderildi(true);
+  };
+
+  /* Kayıt sonrası: e-posta doğrulaması bekleniyor */
+  if (dogrulamaBekliyor) {
+    return (
+      <div className="min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans flex flex-col justify-center px-5 py-12">
+        <div className="w-full max-w-sm mx-auto text-center">
+          <div className="flex justify-center mb-5">
+            <div className="p-4 bg-emerald-500/15 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-500/10"><Mail size={40} /></div>
+          </div>
+          <h2 className="text-2xl font-bold text-white">E-postanı Doğrula</h2>
+          <p className="mt-3 text-sm text-slate-400 leading-relaxed">
+            <span className="text-slate-200 font-medium break-all">{dogrulamaBekliyor}</span> adresine bir doğrulama bağlantısı gönderdik.
+            Hesabını kullanabilmek için önce o bağlantıya tıkla.
+          </p>
+          <div className="mt-6 bg-[#13182B] border border-slate-800 rounded-xl p-4 text-left space-y-2">
+            <p className="text-xs text-slate-400 flex gap-2"><span className="text-indigo-400 font-bold">1.</span> Gelen kutunu aç</p>
+            <p className="text-xs text-slate-400 flex gap-2"><span className="text-indigo-400 font-bold">2.</span> Mail yoksa <span className="text-slate-300">spam / gereksiz</span> klasörüne bak</p>
+            <p className="text-xs text-slate-400 flex gap-2"><span className="text-indigo-400 font-bold">3.</span> Bağlantıya tıkla, sonra buradan giriş yap</p>
+          </div>
+
+          {error && <div className="mt-4 text-sm p-3 rounded-xl border bg-red-500/10 border-red-500/50 text-red-400">{error}</div>}
+          {tekrarGonderildi && <div className="mt-4 text-sm p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/50 text-emerald-400">Doğrulama bağlantısı yeniden gönderildi.</div>}
+
+          <button type="button" onClick={tekrarGonder} disabled={loading || tekrarGonderildi}
+            className="mt-5 w-full py-3 rounded-xl text-sm font-medium text-slate-200 bg-[#13182B] border border-slate-700 hover:border-slate-600 disabled:opacity-50 flex items-center justify-center gap-2">
+            {loading ? <Loader2 className="animate-spin" size={18} /> : <RotateCcw size={16} />} Bağlantıyı tekrar gönder
+          </button>
+          <button type="button" onClick={() => { setDogrulamaBekliyor(''); setTekrarGonderildi(false); setMod('giris'); setError(''); }}
+            className="mt-3 w-full py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700">
+            Girişe Dön
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const baslik = isReset ? 'Şifreni Sıfırla' : isRegister ? 'Yeni Hesap Oluştur' : 'Hesabınıza Giriş Yapın';
 
@@ -1085,6 +1151,25 @@ const BudgetPanel = ({ gelir, odenen, bekleyen, birikim = 0, ayAdi, onGelirEkle,
   );
 };
 
+/* ============================ E-POSTA DOĞRULANDI ============================ */
+const EpostaDogrulandi = ({ onDevam }) => (
+  <div className="min-h-[100dvh] bg-[#0B0F19] text-slate-200 font-sans flex flex-col justify-center px-5 py-12">
+    <div className="w-full max-w-sm mx-auto text-center">
+      <div className="flex justify-center mb-5">
+        <div className="p-4 bg-emerald-500/15 text-emerald-400 rounded-2xl shadow-lg shadow-emerald-500/10"><CheckCircle size={44} /></div>
+      </div>
+      <h2 className="text-2xl font-bold text-white">E-postan Doğrulandı</h2>
+      <p className="mt-3 text-sm text-slate-400 leading-relaxed">
+        Hesabın kullanıma hazır. Güvenlik için seni içeri almadık — şimdi e-posta ve şifrenle giriş yapabilirsin.
+      </p>
+      <button type="button" onClick={onDevam}
+        className="mt-7 w-full py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/20">
+        Giriş Yap
+      </button>
+    </div>
+  </div>
+);
+
 /* ============================ PROFİL: GÖRÜNEN AD ============================ */
 const ProfilKarti = ({ user, onSaved, showToast }) => {
   const [ad, setAd] = useState(user.user_metadata?.ad || user.user_metadata?.full_name || '');
@@ -1374,7 +1459,8 @@ const PAGE_SIZE = 20;
 export default function App() {
   const [session, setSession] = useState(null);
   const [booting, setBooting] = useState(true);
-  const [kurtarma, setKurtarma] = useState(false); // şifre sıfırlama linkinden gelindiğinde
+  const [kurtarma, setKurtarma] = useState(false);   // şifre sıfırlama linkinden gelindiğinde
+  const [dogrulandi, setDogrulandi] = useState(false); // e-posta doğrulama linkinden gelindiğinde
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem('aktifSekme') || 'Ana Sayfa'; } catch { return 'Ana Sayfa'; }
   });
@@ -1415,6 +1501,16 @@ export default function App() {
     try { sessionStorage.setItem('oturumCanli', '1'); } catch { /* gizli mod */ }
 
     const baslat = async () => {
+      // E-posta doğrulama linkinden gelindiyse: oturumu açma, onay ekranını göster
+      const tur = adresTipi();
+      if (tur === 'signup' || tur === 'email_change') {
+        dogrulamaSurecinde = true;
+        await new Promise(r => setTimeout(r, 400));      // Supabase adresteki token'ı işlesin
+        try { await supabase.auth.signOut(); } catch { /* yoksay */ }
+        try { window.history.replaceState(null, '', window.location.pathname); } catch { /* yoksay */ }
+        setSession(null); setDogrulandi(true); setBooting(false);
+        return;
+      }
       if (hatirlamaKapali && yeniSekme) { try { await supabase.auth.signOut(); } catch { /* yoksay */ } }
       const { data } = await supabase.auth.getSession();
       setSession(data.session); setBooting(false);
@@ -1423,7 +1519,7 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setKurtarma(true); // e-posta linkinden gelindi
-      if (kayitSurecinde) return; // kayıt akışındaki geçici oturumu yok say
+      if (kayitSurecinde || dogrulamaSurecinde) return;     // geçici oturumları yok say
       setSession(s);
     });
     return () => subscription.unsubscribe();
@@ -1846,6 +1942,7 @@ export default function App() {
     setSession(null); setKurtarma(false);
     try { window.history.replaceState(null, '', window.location.pathname); } catch { /* yoksay */ }
   }} />;
+  if (dogrulandi) return <EpostaDogrulandi onDevam={() => { dogrulamaSurecinde = false; setDogrulandi(false); }} />;
   if (!session) return <Login />;
 
   const userName = (session.user.user_metadata?.ad || '').trim()
