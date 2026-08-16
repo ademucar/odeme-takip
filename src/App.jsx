@@ -84,7 +84,7 @@ const hataMesaji = (err) => {
     ['password should be at least', 'Şifre en az 6 karakter olmalı.'],
     ['unable to validate email', 'Geçerli bir e-posta adresi gir.'],
     ['invalid email', 'Geçerli bir e-posta adresi gir.'],
-    ['email rate limit', 'Çok fazla deneme yaptın. Bir süre sonra tekrar dene.'],
+    ['email rate limit', 'E-posta gönderim sınırına takıldın. Bir süre bekleyip tekrar dene.'],
     ['over_request_rate_limit', 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.'],
     ['for security purposes', 'Çok sık denedin. Birkaç saniye bekleyip tekrar dene.'],
     ['user not found', 'Böyle bir kullanıcı bulunamadı.'],
@@ -1160,7 +1160,7 @@ const EpostaDogrulandi = ({ onDevam }) => (
       </div>
       <h2 className="text-2xl font-bold text-white">E-postan Doğrulandı</h2>
       <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-        Hesabın kullanıma hazır. Güvenlik için seni içeri almadık — şimdi e-posta ve şifrenle giriş yapabilirsin.
+        Hesabın kullanıma hazır. Şimdi giriş yapabilirsin.
       </p>
       <button type="button" onClick={onDevam}
         className="mt-7 w-full py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/20">
