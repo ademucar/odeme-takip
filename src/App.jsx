@@ -97,6 +97,51 @@ const hataMesaji = (err) => {
   return 'Bir şeyler ters gitti. Lütfen tekrar dene.';
 };
 
+/* ============================ ŞİFRE KURALLARI ============================
+   Sadece kayıt ve şifre yenilemede uygulanır; girişte uygulanmaz ki
+   eski (kısa) şifreye sahip mevcut kullanıcılar kilitlenmesin. */
+const SIFRE_KURALLARI = [
+  { id: 'uzunluk', etiket: 'En az 8 karakter', test: (s) => s.length >= 8 },
+  { id: 'buyuk', etiket: 'Bir büyük harf', test: (s) => /[A-ZÇĞİÖŞÜ]/.test(s) },
+  { id: 'kucuk', etiket: 'Bir küçük harf', test: (s) => /[a-zçğıöşü]/.test(s) },
+  { id: 'rakam', etiket: 'Bir rakam', test: (s) => /[0-9]/.test(s) }
+];
+
+const sifreDurumu = (s = '') => {
+  const kurallar = SIFRE_KURALLARI.map(k => ({ ...k, tamam: k.test(s) }));
+  const gecen = kurallar.filter(k => k.tamam).length;
+  // Özel karakter ve ekstra uzunluk zorunlu değil ama gücü artırır
+  const bonus = (/[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]/.test(s) ? 1 : 0) + (s.length >= 12 ? 1 : 0);
+  return { kurallar, gecerli: gecen === SIFRE_KURALLARI.length, puan: gecen === 4 ? 4 + bonus : gecen };
+};
+
+const SifreGucu = ({ sifre }) => {
+  const { kurallar, puan } = sifreDurumu(sifre);
+  if (!sifre) return null;
+  const seviye = puan >= 6 ? 3 : puan >= 5 ? 2 : puan >= 4 ? 1 : 0;
+  const renk = ['bg-red-500', 'bg-yellow-500', 'bg-emerald-500', 'bg-emerald-400'][seviye];
+  const yazi = ['Zayıf', 'İyi', 'Güçlü', 'Çok güçlü'][seviye];
+  const yaziRenk = ['text-red-400', 'text-yellow-400', 'text-emerald-400', 'text-emerald-300'][seviye];
+  return (
+    <div className="mt-2.5">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className={`h-full ${renk} transition-all duration-300`} style={{ width: `${Math.min(100, (puan / 6) * 100)}%` }} />
+        </div>
+        <span className={`text-[11px] font-medium ${yaziRenk}`}>{yazi}</span>
+      </div>
+      <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {kurallar.map(k => (
+          <li key={k.id} className={`text-[11px] flex items-center gap-1.5 ${k.tamam ? 'text-emerald-400' : 'text-slate-500'}`}>
+            {k.tamam ? <Check size={11} className="shrink-0" /> : <X size={11} className="shrink-0 opacity-50" />}
+            {k.etiket}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 const INPUT = "w-full bg-[#0B0F19] border border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none";
 const CARD = "bg-[#13182B] border border-slate-800/80 rounded-2xl";
 
@@ -360,7 +405,11 @@ const Login = () => {
       return setBasarili('Şifre sıfırlama bağlantısı e-postana gönderildi. Gelen kutunu kontrol et.');
     }
 
-    if (password.length < 6) return setError('Şifre en az 6 karakter olmalı.');
+    // Kurallar yalnızca yeni şifre belirlerken; girişte eski şifreler kabul edilmeli
+    if (isRegister) {
+      const d = sifreDurumu(password);
+      if (!d.gecerli) return setError('Şifren kurallara uymuyor: ' + d.kurallar.filter(k => !k.tamam).map(k => k.etiket.toLowerCase()).join(', ') + '.');
+    } else if (!password) return setError('Şifreni gir.');
     // Beni hatırla tercihi: işaretsizse tarayıcı kapanınca oturum düşer (App boot'ta uygulanır)
     try { localStorage.setItem('beniHatirla', remember ? '1' : '0'); } catch { /* gizli mod */ }
     setLoading(true);
@@ -444,12 +493,15 @@ const Login = () => {
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Şifre</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-                  <input type={sifreGoster ? 'text' : 'password'} required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
+                  <input type={sifreGoster ? 'text' : 'password'} required minLength={isRegister ? 8 : undefined}
+                    autoComplete={isRegister ? 'new-password' : 'current-password'}
+                    value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
                   <button type="button" onClick={() => setSifreGoster(v => !v)} aria-label={sifreGoster ? 'Şifreyi gizle' : 'Şifreyi göster'}
                     className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-slate-500 hover:text-slate-300">
                     {sifreGoster ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {isRegister && <SifreGucu sifre={password} />}
               </div>
             )}
 
@@ -512,7 +564,8 @@ const SifreYenile = ({ onDone, showToast }) => {
 
   const kaydet = async (e) => {
     e.preventDefault(); setError('');
-    if (password.length < 6) return setError('Şifre en az 6 karakter olmalı.');
+    const d = sifreDurumu(password);
+    if (!d.gecerli) return setError('Şifren kurallara uymuyor: ' + d.kurallar.filter(k => !k.tamam).map(k => k.etiket.toLowerCase()).join(', ') + '.');
     if (password !== password2) return setError('Şifreler eşleşmiyor.');
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
@@ -534,19 +587,23 @@ const SifreYenile = ({ onDone, showToast }) => {
             <label className="block text-sm font-medium text-slate-300 mb-1.5">Yeni şifre</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-              <input type={goster ? 'text' : 'password'} required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
+              <input type={goster ? 'text' : 'password'} required minLength={8} autoComplete="new-password"
+                value={password} onChange={e => setPassword(e.target.value)} className={`${INPUT} pl-10 pr-10`} placeholder="••••••••" />
               <button type="button" onClick={() => setGoster(v => !v)} aria-label={goster ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-slate-500 hover:text-slate-300">
                 {goster ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+            <SifreGucu sifre={password} />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">Yeni şifre (tekrar)</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-              <input type={goster ? 'text' : 'password'} required minLength={6} value={password2} onChange={e => setPassword2(e.target.value)} className={`${INPUT} pl-10`} placeholder="••••••••" />
+              <input type={goster ? 'text' : 'password'} required minLength={8} autoComplete="new-password"
+                value={password2} onChange={e => setPassword2(e.target.value)} className={`${INPUT} pl-10`} placeholder="••••••••" />
             </div>
+            {password2 && password !== password2 && <p className="text-[11px] text-red-400 mt-1.5">Şifreler eşleşmiyor.</p>}
           </div>
           <button type="submit" disabled={loading} className="w-full flex justify-center items-center py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-500/20">
             {loading ? <Loader2 className="animate-spin" size={20} /> : <><Check size={18} className="mr-2" /> Şifreyi Güncelle</>}
