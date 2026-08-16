@@ -67,6 +67,10 @@ const nextDate = (from, periodId) => {
 
 const FILTER_LABEL = { hepsi: 'Tüm kayıtlar', bekliyor: 'Bekleyenler', geciken: 'Gecikenler', odendi: 'Ödenenler', onemli: 'Önemli işaretliler' };
 
+/* Avatar için baş harfler. Türkçe büyütme kuralı (i → İ) için locale veriyoruz. */
+const basHarfler = (ad = '') => ad.trim().split(/[\s._-]+/).filter(Boolean).slice(0, 2)
+  .map(p => p[0]).join('').toLocaleUpperCase(TR) || '?';
+
 /* Supabase hataları İngilizce gelir; kullanıcıya Türkçe göstermek için çeviriyoruz.
    Eşleşme bulunmazsa genel bir mesaj veririz, teknik metni konsola bırakırız. */
 const hataMesaji = (err) => {
@@ -1989,7 +1993,9 @@ export default function App() {
         <div className="shrink-0 p-4 border-t border-slate-800/60">
           <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-900 cursor-pointer border border-transparent hover:border-slate-800"
             onClick={() => supabase.auth.signOut()}>
-            <img src={`https://ui-avatars.com/api/?name=${userName}&background=6366f1&color=fff`} alt="" className="w-10 h-10 rounded-full bg-slate-800" />
+            <div aria-hidden="true" className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shrink-0 select-none">
+              {basHarfler(userName)}
+            </div>
             <div className="flex-1 overflow-hidden">
               <h4 className="text-sm font-bold text-white truncate">{userName}</h4>
               <p className="text-[10px] text-red-400 uppercase font-bold mt-0.5 tracking-wider">Çıkış Yap</p>
