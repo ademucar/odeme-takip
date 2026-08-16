@@ -612,7 +612,7 @@ const Login = () => {
           </p>
 
           <p className="mt-10 text-center text-xs text-slate-600">
-            Developed by <a href="https://ademucar.com.tr/" target="_blank" rel="noopener noreferrer" className="text-slate-400 font-medium hover:text-white transition-colors">Adem Uçar</a>
+            Developed bilo <a href="https://ademucar.com.tr/" target="_blank" rel="noopener noreferrer" className="text-slate-400 font-medium hover:text-white transition-colors">Adem Uçar</a>
           </p>
         </div>
       </div>
